@@ -13,13 +13,25 @@ e classifique a severidade do estado atual do cluster.
 | CPU | > 70% | > 85% |
 | Memória | > 75% | > 90% |
 | Disco | > 70% | > 85% |
-| Pods unhealthy | >= 1 | CrashLoopBackOff |
+| Pods unhealthy | >= 1 pod em qualquer namespace | CrashLoopBackOff em qualquer namespace |
 
 ## Lógica de classificação
 
 - Se qualquer métrica atingir CRITICAL → severidade geral = CRITICAL
-- Se qualquer métrica atingir WARNING (sem CRITICAL) → severidade = WARNING  
-- Se tudo dentro dos thresholds → severidade = OK
+- Se houver CrashLoopBackOff em **qualquer** namespace → severidade = CRITICAL
+- Se qualquer métrica atingir WARNING (sem CRITICAL) → severidade = WARNING
+- Se houver pods unhealthy (sem CrashLoopBackOff) em qualquer namespace → severidade = WARNING
+- Se tudo dentro dos thresholds e nenhum pod unhealthy → severidade = OK
+
+## Regras para recomendações
+
+Toda ação recomendada deve incluir o namespace afetado. Use o formato:
+`"<ação> — namespace: <namespace>"`
+
+Exemplos:
+- `"Investigar CrashLoopBackOff no pod nginx-abc — namespace: default"`
+- `"Verificar eventos de Warning — namespace: kube-system"`
+- `"Checar recursos disponíveis para pods Pending — namespace: monitoring"`
 
 ## Formato de retorno obrigatório
 
@@ -27,9 +39,17 @@ Retorne APENAS um JSON com esta estrutura:
 ```json
 {
   "severity": "CRITICAL | WARNING | OK",
-  "affected_components": ["<componente>"],
+  "affected_components": [
+    {
+      "name": "<componente ou pod>",
+      "namespace": "<namespace>",
+      "reason": "<motivo>"
+    }
+  ],
   "summary": "<resumo em 2 linhas>",
-  "recommended_actions": ["<ação 1>", "<ação 2>"],
+  "recommended_actions": [
+    "<ação> — namespace: <namespace>"
+  ],
   "raw_metrics": <objeto com dados recebidos>
 }
 ```

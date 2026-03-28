@@ -12,6 +12,17 @@ automáticos de resposta a incidentes.
 - Host: Fedora 43 — i7-14900HX, 32GB DDR5, RTX 4070
 - Namespace de monitoramento: `monitoring`
 
+### Namespaces Monitorados
+
+| Namespace | Descrição |
+|---|---|
+| `default` | Workloads de aplicação do usuário |
+| `monitoring` | Stack de observabilidade (Prometheus, Grafana, AlertManager) |
+| `kube-system` | Componentes internos do Kubernetes |
+
+Todos os sub-agents que interagem com kubectl devem verificar **estes três namespaces**.
+Novos namespaces devem ser adicionados nesta tabela para serem incluídos no monitoramento.
+
 ### Serviços (acessar via port-forward)
 | Serviço | ClusterIP | Porta | Port-forward local |
 |---|---|---|---|
