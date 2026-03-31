@@ -12,6 +12,11 @@ automáticos de resposta a incidentes.
 - Host: Fedora 43 — i7-14900HX, 32GB DDR5, RTX 4070
 - Namespace de monitoramento: `monitoring`
 
+### 💡 Contexto de Ambiente (Local Dev)
+- **Infra:** O cluster roda em Minikube local (Fedora).
+- **Startup:** É esperado um 'Warm-up period' de 10-15 minutos após o comando `minikube start`.
+- **Filtro de Ruído:** Durante os primeiros 15 minutos de uptime do nó, ignore eventos de `FailedMount` e `NetworkNotReady` como CRITICAL; classifique-os apenas como INFO ou WARNING de inicialização.
+
 ### Namespaces Monitorados
 
 | Namespace | Descrição |

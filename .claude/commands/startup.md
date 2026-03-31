@@ -68,6 +68,11 @@ Onde `<STATUS>` é um dos seguintes:
 - Se **todos** os serviços estiverem `OK` ou `STARTED`: informe que o ambiente está pronto e retorne controle ao usuário.
 - Se **algum** estiver `FAILED`: exiba o log de erro (`/tmp/pf-<serviço>.log`) e oriente o usuário a verificar se o cluster Minikube está rodando com `minikube status`.
 
+### 🧹 Sanitização de Ambiente
+1. Verifique se existem arquivos `.json` residuais na raiz: `ls *.json`
+2. Se existirem, execute a limpeza silenciosa: `rm -f *.json`
+3. (Opcional) Limpar eventos antigos do K8s para evitar falsos positivos de reboots passados: `kubectl delete events --all -A`
+
 ## Princípios
 
 - Nunca mate port-forwards já existentes — apenas crie os que estão ausentes
