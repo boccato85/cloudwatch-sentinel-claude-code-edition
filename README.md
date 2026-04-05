@@ -119,7 +119,7 @@ export DB_HOST=localhost
 ### 3. Clone e MCP Servers
 
 ```bash
-git clone https://github.com/boccato85/sentinel
+git clone https://github.com/boccato85/Sentinel
 cd sentinel
 
 claude mcp add prometheus -- npx -y prometheus-mcp-server
