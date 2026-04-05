@@ -6,3 +6,12 @@ __pycache__/
 .env.*
 *.log
 /tmp/
+# Go agent binaries
+agent/sentinel-agent
+agent/cloudwatch-sentinel-agent
+# Generated reports (preserve structure, not content)
+reports/benchmark_*.md
+reports/*_OK.md
+reports/*_WARNING.md
+reports/*_CRITICAL.md
+runbooks/

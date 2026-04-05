@@ -30,12 +30,11 @@ Este documento é sua bússola operacional: define contexto de ambiente, thresho
 
 ## 🛠️ Fluxo de Trabalho (Mission Profile)
 
-Siga rigorosamente o ciclo abaixo. Seja conciso e técnico, priorizando comandos de remediação quando necessário.
+O Go agent coleta métricas de forma proativa e contínua. O Claude Code atua na camada de análise e resposta a incidentes.
 
-1. **Sanitização:** Limpe arquivos `.json` residuais antes de iniciar.
-2. **Coleta:** Execute `monitor_cluster` para obter o estado atual do cluster.
-3. **Análise:** Correlacione os dados coletados aplicando os thresholds acima.
-4. **Reporte:** Gere o output final em `./reports/` ou `./runbooks/` conforme severidade.
+1. **Bootstrap:** `/startup` — verifica Minikube e sobe port-forwards de Prometheus/Grafana/AlertManager.
+2. **Análise de incidente:** `/incident` — consome dados do Go agent, aplica raciocínio LLM e gera runbook.
+3. **Reporte:** Todo relatório passa pelo harness (`validador_saida.py`) antes de ser gravado em disco.
 
 ---
 
@@ -47,11 +46,40 @@ Execute os scripts abaixo via bash conforme necessário. O Claude Code tem permi
 |-----------------------|--------------------------------------------------|----------------------------------------------------------------|
 | `monitor_cluster`     | `python3 tools/monitor.py`                       | Coleta métricas de CPU/Memória/Disco e status de pods (paralelo) |
 | `generate_report`     | `python3 tools/report_tool.py --severity <SEV> --content '<MD>'` | Gera relatório/runbook passando obrigatoriamente pelo harness  |
-| `run_benchmark`       | `python3 tools/benchmark.py`                     | Ciclo completo de benchmark com telemetria FDR                 |
 | `sanitize_environment`| `rm -f *.json`                                   | Limpa arquivos temporários JSON                                |
-| `save_report_safe`    | `echo "<conteúdo>" \| python3 harness/validador_saida.py > reports/relatorio_final.md` | Salva relatório passando pelo gatekeeper de segurança |
 
 > ⚠️ **Harness Engineering:** Todo relatório final DEVE passar pelo `validador_saida.py` antes de ser gravado. O validador bloqueia comandos destrutivos e exige a seção `## Resumo Executivo` no conteúdo.
+
+---
+
+## 🖥️ Go Agent — Dashboard de Observabilidade
+
+O projeto inclui um agente Go em `agent/` que serve um dashboard web em tempo real na porta **8080**.
+
+**Gerenciamento via systemd (serviço: `sentinel-claude`):**
+
+```bash
+cd agent/
+make start    # compila + inicia o serviço em background
+make stop     # para o serviço
+make restart  # recompila e reinicia
+make status   # estado atual
+make logs     # tail dos logs em tempo real
+make build    # apenas compila o binário
+```
+
+**Endpoints expostos:**
+| Endpoint         | Descrição                                    |
+|------------------|----------------------------------------------|
+| `GET /`          | Dashboard Dynatrace-style (HTML)             |
+| `GET /api/summary`  | Estado do cluster (nodes, pods, CPU)      |
+| `GET /api/metrics`  | Métricas por pod (CPU usage, waste)       |
+| `GET /api/history`  | Histórico de custo (últimos 30 min)       |
+
+**Dependências do agent:**
+- PostgreSQL local (`sentinel_db`) — configurável via env vars `DB_USER`, `DB_PASSWORD`, `DB_NAME`, `DB_HOST`
+- kubeconfig em `~/.kube/config`
+- Metrics Server ativo no cluster
 
 ---
 
@@ -59,6 +87,7 @@ Execute os scripts abaixo via bash conforme necessário. O Claude Code tem permi
 
 - Relatórios estáveis: `./reports/`
 - Procedimentos de emergência: `./runbooks/`
+- Agent Go (dashboard): `./agent/`
 - Dados brutos (temporários): raiz do projeto (limpos a cada ciclo)
 
 ---

@@ -94,7 +94,29 @@ Após iniciar os port-forwards, aguarde os serviços ficarem responsivos com ret
 
 Se após 10 tentativas o serviço ainda não responder, marque como **FAILED**.
 
-### 4. Relatório de status
+### 4. Go Agent (Dashboard)
+
+Verifique se o Go agent está respondendo:
+
+```bash
+curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/api/summary
+```
+
+- Se retornar `200`: marque como `OK`.
+- Se falhar: inicie o serviço e aguarde:
+
+```bash
+cd agent && make start
+```
+
+Após o start, aguarde com retries:
+- Intervalo: 2 segundos
+- Máximo: 10 tentativas
+- Critério: `curl http://localhost:8080/api/summary` retornar `200`
+
+Se após 10 tentativas não responder, marque como `FAILED` e exiba o output de `make logs`.
+
+### 5. Relatório de status
 
 Exiba o resultado final no seguinte formato:
 
@@ -106,17 +128,20 @@ Exiba o resultado final no seguinte formato:
  Prometheus    (localhost:9090)  →  <STATUS>
  Grafana       (localhost:3000)  →  <STATUS>
  AlertManager  (localhost:9093)  →  <STATUS>
+ Go Agent      (localhost:8080)  →  <STATUS>
 ```
 
 Onde `<STATUS>` é um dos seguintes:
 - `✅ OK` — estava acessível antes de qualquer ação
-- `✅ STARTED` — estava DOWN, port-forward iniciado e serviço confirmado
+- `✅ STARTED` — estava DOWN, iniciado e serviço confirmado
 - `❌ FAILED` — não foi possível estabelecer conexão após tentativas
 
-### 5. Decisão final
+### 6. Decisão final
 
 - Se **todos** os serviços estiverem `OK` ou `STARTED`: informe que o ambiente está pronto e retorne controle ao usuário.
-- Se **algum** estiver `FAILED`: exiba o log de erro (`/tmp/pf-<serviço>.log`) e oriente o usuário a verificar os pods do namespace `monitoring` com `kubectl get pods -n monitoring`.
+- Se **algum** estiver `FAILED`: exiba o log de erro relevante e oriente o usuário:
+  - Prometheus/Grafana/AlertManager: `kubectl get pods -n monitoring`
+  - Go Agent: `cd agent && make logs`
 
 ### 🧹 Sanitização de Ambiente
 1. Verifique se existem arquivos `.json` residuais na raiz: `ls *.json`

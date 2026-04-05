@@ -1,64 +1,54 @@
 # 🛡️ CloudWatch Sentinel - Claude Code Edition
 
-> Agente inteligente de monitoramento de clusters Kubernetes construído com Claude Code, sub-agents paralelos e MCP Servers.
+> Plataforma de observabilidade e FinOps para clusters Kubernetes — dashboard em tempo real, análise de incidentes com LLM e rastreamento de custo por pod.
 
-![Status](https://img.shields.io/badge/status-v1.2-brightgreen)
-![Claude Code](https://img.shields.io/badge/Claude%20Code-2.1.76-orange)
+![Status](https://img.shields.io/badge/status-v2.0-brightgreen)
+![Claude Code](https://img.shields.io/badge/Claude%20Code-native-orange)
 ![Kubernetes](https://img.shields.io/badge/Kubernetes-v1.35.1-blue)
+![Go](https://img.shields.io/badge/Go-agent-00ADD8)
 ![Prometheus](https://img.shields.io/badge/Prometheus-kube--prometheus--stack-red)
 
 ---
 
 ## O que é
 
-CloudWatch Sentinel - Claude Code Edition é um agente Claude Code que monitora um cluster Kubernetes em tempo real. Ele dispara sub-agents em paralelo para coletar métricas do Prometheus e analisar o estado dos pods, correlaciona os dados, classifica a severidade e gera runbooks ou relatórios automaticamente — sem intervenção manual.
+CloudWatch Sentinel evoluiu de um agente de monitoramento reativo para uma plataforma completa de observabilidade e FinOps. A arquitetura combina duas camadas complementares:
 
-O projeto demonstra na prática o uso de:
-- **Sub-agents paralelos** para investigação simultânea de múltiplas fontes
+- **Go Agent** — dashboard web proativo em tempo real (porta 8080), coleta contínua de métricas e histórico de custo por pod persistido no PostgreSQL
+- **Claude Code** — análise de incidentes sob demanda com raciocínio LLM, geração de runbooks e recomendações de remediação
+
+O projeto demonstra na prática:
+- **Go agent** com Kubernetes client-go para coleta autônoma de métricas
+- **FinOps** — rastreamento de waste (recursos alocados vs utilizados) e histórico de custo por pod
 - **MCP Servers** para integração com Prometheus e kubectl
-- **CLAUDE.md** como memória persistente de contexto do ambiente
-- **Slash commands** customizados como interface de operação
+- **CLAUDE.md** como contexto operacional persistente
+- **Slash commands** como interface de resposta a incidentes
 
 ---
 
 ## Arquitetura
 
 ```
-CLAUDE.md (contexto, thresholds, namespaces, templates)
-        │
-        ▼
-/startup (verifica e sobe port-forwards)
-        │
-        ▼
-/sentinel (orquestrador)
-        │
-   ┌────┴────┐
-   ▼         ▼
-/collect-  /analyze-       ← paralelo
- metrics    pods
-            (default | monitoring | kube-system)
-   │         │
-   └────┬────┘
-        ▼
-   /correlate
-   (classifica severidade por namespace)
-        │
-   ┌────┴──────────┐
-   ▼               ▼
-CRITICAL         WARNING / OK
-gera runbook     gera relatório
+┌─────────────────────────────────────────────────────┐
+│                   Go Agent (porta 8080)             │
+│  coleta contínua → PostgreSQL → dashboard em tempo  │
+│  real com custo por pod e histórico de 30min        │
+└───────────────────────┬─────────────────────────────┘
+                        │ /api/summary /api/metrics /api/history
+                        ▼
+┌─────────────────────────────────────────────────────┐
+│                  Claude Code                        │
+│                                                     │
+│  /startup                                           │
+│    └─ Minikube + port-forwards + Go agent           │
+│                                                     │
+│  /incident                                          │
+│    └─ consome API do Go agent                       │
+│    └─ raciocínio LLM + análise FinOps               │
+│    └─ classifica severidade                         │
+│    └─ gera runbook/relatório via harness            │
+└─────────────────────────────────────────────────────┘
 ```
-
-### Componentes
-
-| Componente | Função |
-|---|---|
-| `CLAUDE.md` | Memória do agente: endpoints, thresholds, namespaces, templates de runbook |
-| `/startup` | Pré-requisito — verifica e sobe port-forwards automaticamente |
-| `/sentinel` | Orquestrador — ponto de entrada, consolida e decide a ação |
-| `/collect-metrics` | Sub-agent A — consulta Prometheus via PromQL |
-| `/analyze-pods` | Sub-agent B — verifica pods e deployments em todos os namespaces monitorados |
-| `/correlate` | Sub-agent C — correlaciona dados e classifica severidade por namespace |
 
 ---
 
@@ -68,9 +58,11 @@ gera runbook     gera relatório
 |---|---|
 | Cluster | Minikube (KVM2) — Kubernetes v1.35.1 |
 | Monitoramento | kube-prometheus-stack (Prometheus + Grafana + AlertManager) |
-| Agente | Claude Code 2.1.76 |
+| Dashboard | Go agent (Kubernetes client-go + net/http) |
+| Persistência | PostgreSQL (`sentinel_db`) |
+| Agente LLM | Claude Code |
 | Integrações | MCP Server Prometheus + MCP Server kubectl |
-| Output | Runbooks e relatórios em Markdown |
+| Output | Runbooks e relatórios em Markdown (validados pelo harness) |
 
 ---
 
@@ -79,13 +71,15 @@ gera runbook     gera relatório
 - [Claude Code](https://claude.ai/code) instalado e autenticado
 - Minikube rodando com o namespace `monitoring`
 - Helm 3.x
+- Go 1.21+
+- PostgreSQL local com database `sentinel_db`
 - Node.js (para os MCP Servers via npx)
 
 ---
 
 ## Setup
 
-### 1. Sobe o stack de monitoramento
+### 1. Stack de monitoramento
 
 ```bash
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
@@ -98,87 +92,111 @@ helm install prometheus-stack prometheus-community/kube-prometheus-stack \
   --set grafana.adminPassword=admin123
 ```
 
-Aguarda todos os pods ficarem `Running`:
+### 2. PostgreSQL
 
 ```bash
-kubectl get pods -n monitoring
+createdb sentinel_db
 ```
 
-### 2. Clona o repositório
+Variáveis de ambiente opcionais (defaults: `postgres` / `postgres` / `localhost`):
+
+```bash
+export DB_USER=postgres
+export DB_PASSWORD=postgres
+export DB_NAME=sentinel_db
+export DB_HOST=localhost
+```
+
+### 3. Clone e MCP Servers
 
 ```bash
 git clone https://github.com/boccato85/cloudwatch-sentinel-claude-code-edition
-cd cloudwatch-sentinel
+cd cloudwatch-sentinel-claude-code-edition
+
+claude mcp add prometheus -- npx -y prometheus-mcp-server
+claude mcp add kubectl -- npx -y kubectl-mcp-server
 ```
 
-### 3. Configura os MCP Servers
+### 4. Go Agent
 
 ```bash
-claude mcp add prometheus \
-  -e PROMETHEUS_URL=http://localhost:9090 \
-  -- npx -y prometheus-mcp-server
-
-claude mcp add kubectl \
-  -- npx -y kubectl-mcp-server
-
-claude mcp list
-```
-
-Ambos devem aparecer como `Connected`.
-
-### 4. Port-forwards
-
-Não é necessário ativar os port-forwards manualmente. O comando `/startup` — chamado automaticamente pelo `/sentinel` — verifica se Prometheus, Grafana e AlertManager estão acessíveis e sobe apenas os que estiverem down, em background.
-
-Se preferir subir manualmente antes de rodar o agente:
-
-```bash
-kubectl port-forward svc/prometheus-stack-kube-prom-prometheus -n monitoring 9090:9090 &
-kubectl port-forward svc/prometheus-stack-grafana -n monitoring 3000:80 &
-kubectl port-forward svc/prometheus-stack-kube-prom-alertmanager -n monitoring 9093:9093 &
+cd agent
+make build   # compila o binário
+make start   # inicia o serviço (ou use /startup que faz isso automaticamente)
 ```
 
 ---
 
 ## Uso
 
-Abre o Claude Code no diretório do projeto:
-
 ```bash
 claude
 ```
 
-Executa o agente:
+**Bootstrap do ambiente:**
+```
+/startup
+```
+Verifica Minikube, sobe port-forwards de Prometheus/Grafana/AlertManager e inicia o Go agent se estiver down. Output:
 
 ```
-/sentinel
+ Prometheus    (localhost:9090)  →  ✅ OK
+ Grafana       (localhost:3000)  →  ✅ STARTED
+ AlertManager  (localhost:9093)  →  ✅ OK
+ Go Agent      (localhost:8080)  →  ✅ STARTED
 ```
 
-O `/sentinel` chama `/startup` automaticamente, que verifica e sobe os port-forwards necessários sem intervenção manual. Em seguida dispara os sub-agents em paralelo, correlaciona os resultados por namespace e gera automaticamente o output em `./runbooks/` ou `./reports/`.
+**Análise de incidente:**
+```
+/incident
+```
+Consome os dados do Go agent, aplica raciocínio LLM com análise FinOps e gera o relatório ou runbook automaticamente.
 
 ---
 
-## Outputs gerados
+## Go Agent — Dashboard
+
+Após o `/startup`, acesse `http://localhost:8080`.
+
+| Endpoint | Descrição |
+|---|---|
+| `GET /` | Dashboard Dynatrace-style (HTML) |
+| `GET /api/summary` | Estado do cluster: nodes, pods, CPU |
+| `GET /api/metrics` | Métricas por pod: CPU usage, waste |
+| `GET /api/history` | Histórico de custo dos últimos 30 min |
+
+Gerenciamento manual:
+
+```bash
+cd agent/
+make start    # compila + inicia o serviço em background
+make stop     # para o serviço
+make restart  # recompila e reinicia
+make status   # estado atual
+make logs     # tail dos logs em tempo real
+```
+
+---
+
+## Outputs gerados pelo /incident
 
 ### Relatório WARNING / OK
 ```
-reports/
-└── 2026-03-23_14-45_WARNING.md
+reports/2026-04-05_14-30_WARNING.md
 ```
-
-Contém: métricas coletadas, status dos pods, eventos de Warning categorizados e recomendações priorizadas com comandos prontos.
+Contém: estado do cluster, métricas no momento, análise de waste por pod, tendência de custo e recomendações com comandos kubectl prontos.
 
 ### Runbook CRITICAL
 ```
-runbooks/
-└── 2026-03-23_14-45_CRITICAL_prometheus.md
+runbooks/2026-04-05_14-30_CRITICAL_prometheus.md
 ```
-
-Contém: situação detectada, métricas no momento do incidente, hipóteses de causa raiz, ações recomendadas com checklist e comandos de diagnóstico.
+Contém: situação detectada, métricas no momento do incidente, análise FinOps, hipóteses de causa raiz e checklist de remediação.
 
 ---
 
 ## Thresholds
+
+Definidos em `config/thresholds.yaml` — source of truth único, lido em runtime por todos os componentes.
 
 | Métrica | WARNING | CRITICAL |
 |---|---|---|
@@ -187,6 +205,7 @@ Contém: situação detectada, métricas no momento do incidente, hipóteses de 
 | Disco | > 70% | > 85% |
 | Pod CrashLoopBackOff | — | imediato |
 | Pod Pending > 5min | ✓ | — |
+| Waste por pod | > 60% | — |
 
 ---
 
@@ -194,78 +213,62 @@ Contém: situação detectada, métricas no momento do incidente, hipóteses de 
 
 ```
 cloudwatch-sentinel-claude-code-edition/
-├── CLAUDE.md                        # Memória e contexto do agente
+├── CLAUDE.md                        # Contexto operacional do agente
 ├── README.md
 ├── .mcp.json                        # Configuração dos MCP Servers
 ├── .gitignore
+├── agent/
+│   ├── main.go                      # Go agent: dashboard + coleta + PostgreSQL
+│   ├── go.mod / go.sum
+│   └── Makefile                     # build, start, stop, restart, status, logs
 ├── config/
 │   └── thresholds.yaml              # Source of truth único de thresholds
 ├── tools/
 │   ├── monitor.py                   # Coleta paralela K8s + Prometheus
-│   ├── report_tool.py               # Gravação segura via harness
-│   └── benchmark.py                 # Ciclo autônomo FDR com telemetria
+│   └── report_tool.py               # Gravação segura via harness
 ├── harness/
 │   └── validador_saida.py           # Gatekeeper: bloqueia destrutivos, exige Resumo Executivo
 ├── .claude/
 │   └── commands/
-│       ├── startup.md               # Pré-requisito: Minikube + port-forwards automáticos
-│       ├── sentinel.md              # Orquestrador
-│       ├── collect-metrics.md       # Sub-agent A
-│       ├── analyze-pods.md          # Sub-agent B
-│       ├── correlate.md             # Sub-agent C
-│       └── benchmark.md             # Benchmark com telemetria por fase
+│       ├── startup.md               # Bootstrap: Minikube + port-forwards + Go agent
+│       └── incident.md              # Análise LLM + runbook via Go agent API
 ├── runbooks/                        # Runbooks CRITICAL gerados
-└── reports/                         # Relatórios WARNING/OK/benchmark gerados
-```
-
----
-
-## Exemplo de output real
-
-O relatório abaixo foi gerado automaticamente pelo agente em execução real contra um cluster Minikube:
-
-```
-Severidade: WARNING
-CPU: 11.4% | Memória: 45.1% | Disco: 17.65%
-Pods Running: 16/16 | Deployments saudáveis: 7/7
-64 Warning events identificados como residuais de restart anterior do nó
-2 pontos de atenção: storage-provisioner BackOff + readiness probes CoreDNS/Grafana
+└── reports/                         # Relatórios WARNING/OK gerados
 ```
 
 ---
 
 ## Harness Engineering
 
-O projeto inclui um mecanismo de segurança para gravação de relatórios — o **Output Validator** (`harness/validador_saida.py`).
-
-Todo relatório final **deve** passar pelo validador antes de ser gravado em disco:
-
-```bash
-echo "<conteúdo>" | python3 harness/validador_saida.py > reports/relatorio_final.md
-```
-
-O validador aplica duas regras obrigatórias:
+Todo relatório final passa pelo `harness/validador_saida.py` antes de ser gravado em disco. O validador aplica:
 
 | Regra | Comportamento |
 |---|---|
-| Bloqueia comandos destrutivos | Se o conteúdo contiver padrões como `rm -rf`, `kubectl delete`, `DROP TABLE` etc., a gravação é abortada |
-| Exige seção `## Resumo Executivo` | Relatórios sem essa seção são rejeitados — garante estrutura mínima de comunicação |
+| Bloqueia comandos destrutivos | `rm -rf`, `kubectl delete`, `DROP TABLE`, `dd if=`, `mkfs`, fork bomb etc. |
+| Exige `## Resumo Executivo` | Relatórios sem essa seção são rejeitados |
+| Tamanho mínimo | Conteúdo menor que 100 caracteres é rejeitado |
 
-Se qualquer regra for violada, o validador retorna erro e o arquivo **não é criado**.
+Se qualquer regra for violada, o arquivo **não é criado**.
 
 ---
 
 ## Changelog
 
+### v2.0
+- **Go agent** (`agent/`) com dashboard web em tempo real na porta 8080
+- **FinOps** — rastreamento de waste por pod e histórico de custo (últimos 30min) persistido no PostgreSQL
+- **`/incident`** substitui `/sentinel` — análise LLM que consome diretamente a API do Go agent
+- **`/startup`** passa a subir o Go agent automaticamente além dos port-forwards
+- Removidos: `/sentinel`, `/collect-metrics`, `/analyze-pods`, `/correlate`, `/benchmark`
+
 ### v1.2
-- `/startup`: adiciona **Fase 0** — verifica `minikube status` antes de qualquer ação; se `Stopped`, executa `minikube start` e aguarda `kubectl get nodes` retornar `Ready` com retry (20x, intervalo 15s)
-- Renomeia o projeto para **CloudWatch Sentinel - Claude Code Edition** em todos os arquivos e no repositório
-- Adiciona `.mcp.json` com configuração dos MCP servers (Prometheus e kubectl)
+- `/startup`: Fase 0 — verifica `minikube status` antes de qualquer ação; se `Stopped`, executa `minikube start` com retry (20x, 15s)
+- Renomeia o projeto para **CloudWatch Sentinel - Claude Code Edition**
+- Adiciona `.mcp.json` com configuração dos MCP servers
 
 ### v1.1
-- `/startup`: verifica e sobe port-forwards automaticamente antes de qualquer operação
-- Suporte a múltiplos namespaces (`default`, `monitoring`, `kube-system`) — resultados agrupados por namespace em todos os sub-agents
-- `/sentinel` chama `/startup` como primeiro passo obrigatório
+- `/startup`: verifica e sobe port-forwards automaticamente
+- Suporte a múltiplos namespaces (`default`, `monitoring`, `kube-system`)
 
 ### v1.0
 - Release inicial: orquestrador + sub-agents paralelos (`/collect-metrics`, `/analyze-pods`, `/correlate`)
@@ -275,6 +278,4 @@ Se qualquer regra for violada, o validador retorna erro e o arquivo **não é cr
 
 ## Motivação
 
-Projeto desenvolvido para explorar na prática a arquitetura de agentes Claude Code com sub-agents paralelos e MCP Servers aplicada a um problema real de CloudOps — monitoramento e resposta a incidentes em clusters Kubernetes.
-
-
+Projeto desenvolvido para explorar na prática a evolução de um agente Claude Code simples de monitoramento até uma plataforma de observabilidade e FinOps — combinando coleta autônoma via Go, persistência com PostgreSQL, dashboard em tempo real e raciocínio LLM para análise de incidentes.
