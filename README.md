@@ -1,5 +1,9 @@
 # 🛡️ CloudWatch Sentinel - Claude Code Edition
 
+<p align="center">
+  <img src="cw_sentinel_logo.png" alt="CloudWatch Sentinel Logo" width="180"/>
+</p>
+
 > Plataforma de observabilidade e FinOps para clusters Kubernetes — dashboard em tempo real, análise de incidentes com LLM e rastreamento de custo por pod.
 
 ![Status](https://img.shields.io/badge/status-v2.0-brightgreen)
