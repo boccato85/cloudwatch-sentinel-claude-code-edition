@@ -175,7 +175,7 @@ Exiba o box visual exatamente neste formato (substitua os valores reais):
 
 ```
 ╔══════════════════════════════════════════════════════════╗
-║   CloudWatch Sentinel - Claude Code Edition - Claude Code Edition — Benchmark  ║
+║   CloudWatch Sentinel - Claude Code Edition — Benchmark  ║
 ╚══════════════════════════════════════════════════════════╝
   Tempo total:        <duracao_total_segundos>s (<duracao_total_minutos>min <duracao_total_resto_segundos>s)
   Fase startup:       <duracao_startup>s

@@ -1,0 +1,16 @@
+cpu:
+  warning: 70
+  critical: 85
+
+memory:
+  warning: 75
+  critical: 90
+
+disk:
+  warning: 70
+  critical: 85
+
+pods:
+  pending_warning_minutes: 5
+  restart_warning_threshold: 5
+  crash_loop_critical: true

@@ -193,18 +193,29 @@ Contém: situação detectada, métricas no momento do incidente, hipóteses de 
 ## Estrutura do projeto
 
 ```
-cloudwatch-sentinel/
+cloudwatch-sentinel-claude-code-edition/
 ├── CLAUDE.md                        # Memória e contexto do agente
 ├── README.md
+├── .mcp.json                        # Configuração dos MCP Servers
+├── .gitignore
+├── config/
+│   └── thresholds.yaml              # Source of truth único de thresholds
+├── tools/
+│   ├── monitor.py                   # Coleta paralela K8s + Prometheus
+│   ├── report_tool.py               # Gravação segura via harness
+│   └── benchmark.py                 # Ciclo autônomo FDR com telemetria
+├── harness/
+│   └── validador_saida.py           # Gatekeeper: bloqueia destrutivos, exige Resumo Executivo
 ├── .claude/
 │   └── commands/
-│       ├── startup.md               # Pré-requisito: port-forwards automáticos
+│       ├── startup.md               # Pré-requisito: Minikube + port-forwards automáticos
 │       ├── sentinel.md              # Orquestrador
 │       ├── collect-metrics.md       # Sub-agent A
 │       ├── analyze-pods.md          # Sub-agent B
-│       └── correlate.md             # Sub-agent C
+│       ├── correlate.md             # Sub-agent C
+│       └── benchmark.md             # Benchmark com telemetria por fase
 ├── runbooks/                        # Runbooks CRITICAL gerados
-└── reports/                         # Relatórios WARNING/OK gerados
+└── reports/                         # Relatórios WARNING/OK/benchmark gerados
 ```
 
 ---

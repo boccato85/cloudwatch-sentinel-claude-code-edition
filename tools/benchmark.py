@@ -1,0 +1,237 @@
+#!/usr/bin/env python3
+"""
+benchmark.py — Ciclo autônomo de benchmark com telemetria FDR
+CloudWatch Sentinel - Claude Code Edition
+
+Executa o pipeline completo (coleta → correlação → relatório),
+mede o tempo de cada fase e grava um FDR em reports/.
+
+Thresholds lidos de config/thresholds.yaml — source of truth único.
+
+Uso:
+    python3 tools/benchmark.py
+"""
+
+import json
+import os
+import subprocess
+import sys
+import time
+from datetime import datetime, timezone
+
+import yaml
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+THRESHOLDS_FILE = os.path.join(BASE_DIR, "..", "config", "thresholds.yaml")
+REPORT_DIR = os.path.join(BASE_DIR, "..", "reports")
+MONITOR_SCRIPT = os.path.join(BASE_DIR, "monitor.py")
+REPORT_SCRIPT = os.path.join(BASE_DIR, "report_tool.py")
+
+
+def load_thresholds() -> dict:
+    with open(THRESHOLDS_FILE, encoding="utf-8") as f:
+        return yaml.safe_load(f)
+
+
+def run_monitor() -> dict:
+    result = subprocess.run(
+        [sys.executable, MONITOR_SCRIPT],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"monitor.py falhou: {result.stderr.strip()}")
+    return json.loads(result.stdout)
+
+
+def correlate(data: dict, thresholds: dict) -> tuple[str, list]:
+    metrics = data.get("prometheus", {}).get("metrics", {})
+    pods = data.get("kubernetes", {}).get("pods", [])
+    issues = []
+    severity = "OK"
+
+    def escalate(new_sev):
+        nonlocal severity
+        order = ["OK", "WARNING", "CRITICAL"]
+        if order.index(new_sev) > order.index(severity):
+            severity = new_sev
+
+    for metric_name, m in metrics.items():
+        if m.get("status") in ("WARNING", "CRITICAL"):
+            issues.append(f"{metric_name}: {m['value']}% [{m['status']}]")
+            escalate(m["status"])
+
+    restart_threshold = thresholds.get("pods", {}).get("restart_warning_threshold", 5)
+    for pod in pods:
+        if "error" in pod:
+            continue
+        reason = pod.get("waiting_reason", "")
+        if reason == "CrashLoopBackOff":
+            issues.append(f"{pod['namespace']}/{pod['name']}: CrashLoopBackOff [CRITICAL]")
+            escalate("CRITICAL")
+        elif pod.get("restarts", 0) > restart_threshold:
+            issues.append(
+                f"{pod['namespace']}/{pod['name']}: {pod['restarts']} restarts [WARNING]"
+            )
+            escalate("WARNING")
+
+    return severity, issues
+
+
+def save_benchmark_report(stats: dict) -> str:
+    ts = stats["ts_inicio"].strftime("%Y-%m-%d_%H-%M")
+    filename = os.path.join(REPORT_DIR, f"benchmark_{ts}.md")
+
+    issues_md = "\n".join(f"- {i}" for i in stats["issues"]) or "- Nenhuma anomalia detectada"
+    namespaces_str = ", ".join(stats["namespaces"])
+
+    content = f"""# Benchmark — CloudWatch Sentinel - Claude Code Edition
+
+## Resumo Executivo
+
+Ciclo autônomo de benchmark executado em {stats['duration_total']:.1f}s. \
+Severidade detectada: **{stats['severity']}**.
+
+**Data/Hora de início:** {stats['ts_inicio'].strftime('%Y-%m-%dT%H:%M:%SZ')}
+**Data/Hora de fim:** {stats['ts_fim'].strftime('%Y-%m-%dT%H:%M:%SZ')}
+**Duração total:** {stats['duration_total']:.1f}s
+
+## Tempos por Fase
+
+| Fase              | Duração (s) |
+|-------------------|-------------|
+| Sanitização       | {stats['duration_sanitize']:.2f}s |
+| Coleta paralela   | {stats['duration_collect']:.2f}s |
+| Correlação        | {stats['duration_correlate']:.2f}s |
+| Relatório         | {stats['duration_report']:.2f}s |
+| **Total**         | **{stats['duration_total']:.1f}s** |
+
+## Contadores de Execução
+
+| Métrica                    | Valor |
+|----------------------------|-------|
+| Chamadas Python realizadas | {stats['python_calls']} |
+| Namespaces analisados      | {len(stats['namespaces'])} |
+| Pods coletados             | {stats['pod_count']} |
+
+## Métricas Coletadas
+
+| Métrica  | Valor   | Status |
+|----------|---------|--------|
+| CPU      | {stats['cpu']} | {stats['cpu_status']} |
+| Memória  | {stats['memory']} | {stats['memory_status']} |
+| Disco    | {stats['disk']} | {stats['disk_status']} |
+
+## Anomalias Detectadas
+
+{issues_md}
+
+## Contexto
+
+- **Severidade detectada:** {stats['severity']}
+- **Namespaces verificados:** {namespaces_str}
+- **Thresholds lidos de:** config/thresholds.yaml
+"""
+
+    os.makedirs(REPORT_DIR, exist_ok=True)
+    with open(filename, "w", encoding="utf-8") as f:
+        f.write(content)
+
+    return filename
+
+
+def fmt_metric(m: dict) -> tuple[str, str]:
+    if m.get("value") is None:
+        return "N/A", m.get("status", "UNKNOWN")
+    return f"{m['value']}%", m.get("status", "UNKNOWN")
+
+
+def main():
+    thresholds = load_thresholds()
+    stats = {"python_calls": 0}
+
+    # FASE 0 — Registro de início
+    stats["ts_inicio"] = datetime.now(timezone.utc)
+    print(f"[BENCHMARK] Início: {stats['ts_inicio'].strftime('%Y-%m-%dT%H:%M:%SZ')}")
+
+    # FASE 1 — Sanitização
+    print("[BENCHMARK] Fase 1/4 — Sanitização...")
+    t0 = time.time()
+    for f in os.listdir("."):
+        if f.endswith(".json"):
+            os.remove(f)
+    stats["duration_sanitize"] = time.time() - t0
+    stats["python_calls"] += 1
+    print(f"[BENCHMARK] Sanitização concluída em {stats['duration_sanitize']:.2f}s")
+
+    # FASE 2 — Coleta
+    print("[BENCHMARK] Fase 2/4 — Coleta paralela...")
+    t0 = time.time()
+    try:
+        data = run_monitor()
+        stats["python_calls"] += 1
+    except Exception as exc:
+        print(f"[BENCHMARK] FAILED na coleta: {exc}")
+        sys.exit(1)
+    stats["duration_collect"] = time.time() - t0
+
+    metrics = data.get("prometheus", {}).get("metrics", {})
+    pods = data.get("kubernetes", {}).get("pods", [])
+    stats["namespaces"] = data.get("kubernetes", {}).get("namespaces", [])
+    stats["pod_count"] = len([p for p in pods if "error" not in p])
+
+    cpu_val, cpu_st = fmt_metric(metrics.get("cpu_usage_percent", {}))
+    mem_val, mem_st = fmt_metric(metrics.get("memory_usage_percent", {}))
+    dsk_val, dsk_st = fmt_metric(metrics.get("disk_usage_percent", {}))
+    stats.update({"cpu": cpu_val, "cpu_status": cpu_st,
+                  "memory": mem_val, "memory_status": mem_st,
+                  "disk": dsk_val, "disk_status": dsk_st})
+
+    print(f"[BENCHMARK] Coleta concluída em {stats['duration_collect']:.2f}s — "
+          f"CPU:{cpu_val} Mem:{mem_val} Disco:{dsk_val}")
+
+    # FASE 3 — Correlação
+    print("[BENCHMARK] Fase 3/4 — Correlação...")
+    t0 = time.time()
+    severity, issues = correlate(data, thresholds)
+    stats["python_calls"] += 1
+    stats["duration_correlate"] = time.time() - t0
+    stats["severity"] = severity
+    stats["issues"] = issues
+    print(f"[BENCHMARK] Correlação concluída em {stats['duration_correlate']:.2f}s — "
+          f"severidade: {severity}")
+
+    # FASE 4 — Relatório
+    print("[BENCHMARK] Fase 4/4 — Gravando relatório...")
+    t0 = time.time()
+    stats["ts_fim"] = datetime.now(timezone.utc)
+    stats["duration_total"] = (stats["ts_fim"] - stats["ts_inicio"]).total_seconds()
+    stats["duration_report"] = 0.0  # calculado abaixo
+
+    report_file = save_benchmark_report(stats)
+    stats["python_calls"] += 1
+    stats["duration_report"] = time.time() - t0
+    print(f"[BENCHMARK] Relatório gravado em {stats['duration_report']:.2f}s → {report_file}")
+
+    # FASE 5 — Box visual
+    dm = int(stats["duration_total"] // 60)
+    ds = int(stats["duration_total"] % 60)
+    print(f"""
+╔══════════════════════════════════════════════════════════╗
+║   CloudWatch Sentinel - Claude Code Edition — Benchmark  ║
+╚══════════════════════════════════════════════════════════╝
+  Tempo total:        {stats['duration_total']:.1f}s ({dm}min {ds}s)
+  Fase sanitização:   {stats['duration_sanitize']:.2f}s
+  Fase coleta:        {stats['duration_collect']:.2f}s
+  Fase correlação:    {stats['duration_correlate']:.2f}s
+  Fase relatório:     {stats['duration_report']:.2f}s
+  Python calls:       {stats['python_calls']}
+  Namespaces:         {len(stats['namespaces'])} analisados
+  Severidade:         {stats['severity']}
+  Relatório salvo:    {report_file}
+""")
+
+
+if __name__ == "__main__":
+    main()

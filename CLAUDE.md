@@ -41,9 +41,9 @@ Execute os scripts abaixo via bash conforme necessário. O Claude Code tem permi
 
 | Ferramenta            | Comando                                          | Descrição                                                      |
 |-----------------------|--------------------------------------------------|----------------------------------------------------------------|
-| `monitor_cluster`     | `python3 .gemini/tools/monitor.py`               | Coleta métricas de CPU/Memória/Disco e status de pods (paralelo) |
-| `generate_report`     | `python3 .gemini/tools/report_tool.py --severity <SEV> --content '<MD>'` | Gera relatório/runbook em Markdown conforme severidade |
-| `run_benchmark`       | `python3 .gemini/tools/benchmark.py`             | Ciclo completo de benchmark com telemetria FDR                 |
+| `monitor_cluster`     | `python3 tools/monitor.py`                       | Coleta métricas de CPU/Memória/Disco e status de pods (paralelo) |
+| `generate_report`     | `python3 tools/report_tool.py --severity <SEV> --content '<MD>'` | Gera relatório/runbook passando obrigatoriamente pelo harness  |
+| `run_benchmark`       | `python3 tools/benchmark.py`                     | Ciclo completo de benchmark com telemetria FDR                 |
 | `sanitize_environment`| `rm -f *.json`                                   | Limpa arquivos temporários JSON                                |
 | `save_report_safe`    | `echo "<conteúdo>" \| python3 harness/validador_saida.py > reports/relatorio_final.md` | Salva relatório passando pelo gatekeeper de segurança |
 

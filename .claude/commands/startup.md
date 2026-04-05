@@ -59,9 +59,23 @@ Para cada serviço, tente acessar o endpoint de health:
 
 Considere o serviço **UP** se o HTTP status code for `200`. Qualquer outro resultado (erro de conexão, timeout, código diferente) indica **DOWN**.
 
-### 2. Subir port-forwards para serviços DOWN
+### 2. Limpar port-forwards órfãos e subir os ausentes
 
-Para cada serviço identificado como DOWN, execute o port-forward em background:
+Antes de criar novos port-forwards, verifique se já existem processos obsoletos nas portas alvo e encerre apenas os que estiverem presos (processo existe mas serviço não responde):
+
+```bash
+for PORT in 9090 3000 9093; do
+  PID=$(lsof -ti tcp:$PORT 2>/dev/null)
+  if [ -n "$PID" ]; then
+    # porta ocupada mas serviço não respondeu no passo 1 → órfão
+    kill $PID 2>/dev/null && echo "Órfão encerrado na porta $PORT (PID $PID)"
+  fi
+done
+```
+
+Execute o bloco acima **apenas para as portas cujos serviços foram identificados como DOWN** no passo 1.
+
+Em seguida, para cada serviço DOWN, inicie o port-forward em background:
 
 ```bash
 kubectl port-forward svc/prometheus-stack-kube-prom-prometheus -n monitoring 9090:9090 > /tmp/pf-prometheus.log 2>&1 &
@@ -107,7 +121,6 @@ Onde `<STATUS>` é um dos seguintes:
 ### 🧹 Sanitização de Ambiente
 1. Verifique se existem arquivos `.json` residuais na raiz: `ls *.json`
 2. Se existirem, execute a limpeza silenciosa: `rm -f *.json`
-3. (Opcional) Limpar eventos antigos do K8s para evitar falsos positivos de reboots passados: `kubectl delete events --all -A`
 
 ## Princípios
 
