@@ -1,5 +1,5 @@
 BINARY   := sentinel-agent
-SERVICE  := sentinel-claude
+SERVICE  := sentinel
 ENV_FILE := ../.env
 ENV_EXAMPLE := ../.env.example
 

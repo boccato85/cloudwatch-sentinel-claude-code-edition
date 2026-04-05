@@ -1,10 +1,10 @@
-# 🛡️ CloudWatch Sentinel - Claude Code Edition
+# 🛡️ sentinel
 
 <p align="center">
   <img src="cw_sentinel_logo.png" alt="CloudWatch Sentinel Logo" width="180"/>
 </p>
 
-> Plataforma de observabilidade e FinOps para clusters Kubernetes — dashboard em tempo real, análise de incidentes com LLM e rastreamento de custo por pod.
+> Plataforma minimalista de observabilidade e FinOps para clusters Kubernetes — dashboard em tempo real, análise de incidentes com LLM e rastreamento de custo por pod.
 
 <p align="center">
   <img src="cw_sentinel_ss.png" alt="CloudWatch Sentinel Dashboard" width="900"/>
@@ -21,7 +21,7 @@
 
 ## O que é
 
-CloudWatch Sentinel evoluiu de um agente de monitoramento reativo para uma plataforma completa de observabilidade e FinOps. A arquitetura combina duas camadas complementares:
+sentinel evoluiu de um agente de monitoramento reativo para uma plataforma completa de observabilidade e FinOps. A arquitetura combina duas camadas complementares:
 
 - **Go Agent** — dashboard web proativo em tempo real (porta 8080), coleta contínua de métricas e histórico de custo por pod persistido no PostgreSQL
 - **Claude Code** — análise de incidentes sob demanda com raciocínio LLM, geração de runbooks e recomendações de remediação
@@ -119,8 +119,8 @@ export DB_HOST=localhost
 ### 3. Clone e MCP Servers
 
 ```bash
-git clone https://github.com/boccato85/cloudwatch-sentinel-claude-code-edition
-cd cloudwatch-sentinel-claude-code-edition
+git clone https://github.com/boccato85/sentinel
+cd sentinel
 
 claude mcp add prometheus -- npx -y prometheus-mcp-server
 claude mcp add kubectl -- npx -y kubectl-mcp-server
@@ -221,7 +221,7 @@ Definidos em `config/thresholds.yaml` — source of truth único, lido em runtim
 ## Estrutura do projeto
 
 ```
-cloudwatch-sentinel-claude-code-edition/
+sentinel/
 ├── CLAUDE.md                        # Contexto operacional do agente
 ├── README.md
 ├── .mcp.json                        # Configuração dos MCP Servers
@@ -269,6 +269,9 @@ Se qualquer regra for violada, o arquivo **não é criado**.
 - **`/incident`** substitui `/sentinel` — análise LLM que consome diretamente a API do Go agent
 - **`/startup`** passa a subir o Go agent automaticamente além dos port-forwards
 - Removidos: `/sentinel`, `/collect-metrics`, `/analyze-pods`, `/correlate`, `/benchmark`
+
+### v2.1
+- Renomeado para **sentinel** — identidade minimalista em todos os arquivos
 
 ### v1.2
 - `/startup`: Fase 0 — verifica `minikube status` antes de qualquer ação; se `Stopped`, executa `minikube start` com retry (20x, 15s)

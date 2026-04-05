@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 report_tool.py — Geração e gravação segura de relatórios
-CloudWatch Sentinel - Claude Code Edition
+sentinel
 
 Todo relatório passa obrigatoriamente pelo harness/validador_saida.py
 antes de ser gravado em disco.

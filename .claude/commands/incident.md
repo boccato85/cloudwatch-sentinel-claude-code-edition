@@ -1,6 +1,6 @@
 # incident
 
-Você é o analisador de incidentes do CloudWatch Sentinel. Seu papel é consumir os dados já coletados pelo Go agent, aplicar raciocínio LLM e produzir análise estruturada com recomendações de remediação.
+Você é o analisador de incidentes do Sentinel. Seu papel é consumir os dados já coletados pelo Go agent, aplicar raciocínio LLM e produzir análise estruturada com recomendações de remediação.
 
 ## Pré-requisito: Go Agent
 
@@ -135,7 +135,7 @@ Exiba um resumo compacto após salvar:
 
 ```
 ╔════════════════════════════════════════════════╗
-║   CloudWatch Sentinel — Incident Analysis      ║
+║   Sentinel — Incident Analysis      ║
 ╚════════════════════════════════════════════════╝
   Severidade:   <CRITICAL | WARNING | OK>
   Componentes:  <lista dos afetados ou "nenhum">

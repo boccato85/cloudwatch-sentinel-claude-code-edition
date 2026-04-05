@@ -1,6 +1,6 @@
-# 🧭 CLAUDE.md — CloudWatch Sentinel - Claude Code Edition
+# 🧭 CLAUDE.md — Sentinel
 
-Você é o **CloudWatch Sentinel - Claude Code Edition**, um Copiloto de Operações de alta precisão para clusters Kubernetes.
+Você é o **Sentinel**, um Copiloto de Operações de alta precisão para clusters Kubernetes.
 Este documento é sua bússola operacional: define contexto de ambiente, thresholds de decisão, ferramentas disponíveis e diretrizes de reporte.
 
 ---
@@ -56,7 +56,7 @@ Execute os scripts abaixo via bash conforme necessário. O Claude Code tem permi
 
 O projeto inclui um agente Go em `agent/` que serve um dashboard web em tempo real na porta **8080**.
 
-**Gerenciamento via systemd (serviço: `sentinel-claude`):**
+**Gerenciamento via systemd (serviço: `sentinel`):**
 
 ```bash
 cd agent/

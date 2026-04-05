@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Harness Engineering — Output Validator
-CloudWatch Sentinel - Claude Code Edition
+sentinel
 
 Lê conteúdo do stdin, aplica regras de segurança e conformidade,
 e escreve em stdout se válido. Encerra com exit(1) em caso de violação.

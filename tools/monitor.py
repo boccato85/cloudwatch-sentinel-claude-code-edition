@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 monitor.py — Coleta paralela de métricas
-CloudWatch Sentinel - Claude Code Edition
+sentinel
 
 Coleta em paralelo:
   - Status de pods via kubernetes-client (default, monitoring, kube-system)

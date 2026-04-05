@@ -1,6 +1,6 @@
 # startup
 
-Você é o agente de inicialização do CloudWatch Sentinel - Claude Code Edition. Sua tarefa é garantir que todos os serviços de monitoramento estejam acessíveis antes de qualquer operação.
+Você é o agente de inicialização do Sentinel. Sua tarefa é garantir que todos os serviços de monitoramento estejam acessíveis antes de qualquer operação.
 
 ## Serviços a verificar
 
@@ -122,7 +122,7 @@ Exiba o resultado final no seguinte formato:
 
 ```
 ╔═══════════════════════════════════════════════════════════╗
-║   CloudWatch Sentinel - Claude Code Edition — Startup     ║
+║   Sentinel — Startup     ║
 ╚═══════════════════════════════════════════════════════════╝
 
  Prometheus    (localhost:9090)  →  <STATUS>
