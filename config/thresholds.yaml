@@ -12,5 +12,7 @@ disk:
 
 pods:
   pending_warning_minutes: 5
-  restart_warning_threshold: 5
   crash_loop_critical: true
+  # restart_warning_threshold: não utilizado — ambiente dev/Minikube não-persistente.
+  # Restarts são cumulativos de múltiplos ciclos de boot e não indicam falha.
+  # Severidade é baseada exclusivamente no estado atual do pod.

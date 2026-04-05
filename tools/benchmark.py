@@ -45,10 +45,16 @@ def run_monitor() -> dict:
     return json.loads(result.stdout)
 
 
-def correlate(data: dict, thresholds: dict) -> tuple[str, list]:
+def correlate(data: dict, thresholds: dict) -> tuple[str, list, list]:
+    """
+    Ambiente dev/Minikube não-persistente: restarts acumulados são ruído normal
+    (cluster desligado/ligado entre sessões). Severidade é baseada exclusivamente
+    no estado atual do pod e nas métricas de recursos.
+    """
     metrics = data.get("prometheus", {}).get("metrics", {})
     pods = data.get("kubernetes", {}).get("pods", [])
     issues = []
+    info = []  # contexto informativo — não eleva severidade
     severity = "OK"
 
     def escalate(new_sev):
@@ -57,26 +63,36 @@ def correlate(data: dict, thresholds: dict) -> tuple[str, list]:
         if order.index(new_sev) > order.index(severity):
             severity = new_sev
 
+    # Métricas de recursos
     for metric_name, m in metrics.items():
         if m.get("status") in ("WARNING", "CRITICAL"):
             issues.append(f"{metric_name}: {m['value']}% [{m['status']}]")
             escalate(m["status"])
 
-    restart_threshold = thresholds.get("pods", {}).get("restart_warning_threshold", 5)
+    # Estado atual dos pods — restarts NÃO contribuem para severidade
+    active_bad_states = {
+        "CrashLoopBackOff": "CRITICAL",
+        "OOMKilled": "CRITICAL",
+        "Error": "WARNING",
+        "Evicted": "WARNING",
+        "Unknown": "WARNING",
+    }
     for pod in pods:
         if "error" in pod:
             continue
-        reason = pod.get("waiting_reason", "")
-        if reason == "CrashLoopBackOff":
-            issues.append(f"{pod['namespace']}/{pod['name']}: CrashLoopBackOff [CRITICAL]")
-            escalate("CRITICAL")
-        elif pod.get("restarts", 0) > restart_threshold:
-            issues.append(
-                f"{pod['namespace']}/{pod['name']}: {pod['restarts']} restarts [WARNING]"
+        reason = pod.get("waiting_reason") or pod.get("phase", "")
+        if reason in active_bad_states:
+            sev = active_bad_states[reason]
+            issues.append(f"{pod['namespace']}/{pod['name']}: {reason} [{sev}]")
+            escalate(sev)
+        elif pod.get("restarts", 0) > 0:
+            # Restarts: apenas contexto, não severidade
+            info.append(
+                f"{pod['namespace']}/{pod['name']}: {pod['restarts']} restarts "
+                f"(cumulativo — ambiente dev)"
             )
-            escalate("WARNING")
 
-    return severity, issues
+    return severity, issues, info
 
 
 def save_benchmark_report(stats: dict) -> str:
@@ -84,6 +100,7 @@ def save_benchmark_report(stats: dict) -> str:
     filename = os.path.join(REPORT_DIR, f"benchmark_{ts}.md")
 
     issues_md = "\n".join(f"- {i}" for i in stats["issues"]) or "- Nenhuma anomalia detectada"
+    info_md = "\n".join(f"- {i}" for i in stats["info"]) or "- N/A"
     namespaces_str = ", ".join(stats["namespaces"])
 
     content = f"""# Benchmark — CloudWatch Sentinel - Claude Code Edition
@@ -126,6 +143,12 @@ Severidade detectada: **{stats['severity']}**.
 ## Anomalias Detectadas
 
 {issues_md}
+
+## Contexto Informativo (não eleva severidade)
+
+> Ambiente dev/Minikube: restarts abaixo são cumulativos de múltiplos ciclos de boot — esperados e normais.
+
+{info_md}
 
 ## Contexto
 
@@ -194,11 +217,12 @@ def main():
     # FASE 3 — Correlação
     print("[BENCHMARK] Fase 3/4 — Correlação...")
     t0 = time.time()
-    severity, issues = correlate(data, thresholds)
+    severity, issues, info = correlate(data, thresholds)
     stats["python_calls"] += 1
     stats["duration_correlate"] = time.time() - t0
     stats["severity"] = severity
     stats["issues"] = issues
+    stats["info"] = info
     print(f"[BENCHMARK] Correlação concluída em {stats['duration_correlate']:.2f}s — "
           f"severidade: {severity}")
 

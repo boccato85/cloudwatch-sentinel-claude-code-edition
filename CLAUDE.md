@@ -10,6 +10,10 @@ Este documento é sua bússola operacional: define contexto de ambiente, thresho
 - **Infraestrutura:** Cluster Kubernetes rodando em Minikube local (Fedora).
 - **Aeronave (Host):** Máquina local do usuário `boccatosantos`.
 - **Warm-up:** O cluster leva de 10 a 15 minutos para estabilizar após o boot. Erros de rede/volume nesse período devem ser reportados apenas como `INFO`.
+- **Ambiente Dev (Minikube não-persistente):** O Minikube é ligado apenas durante sessões de trabalho e desligado ao final. Isso significa:
+  - Contadores de `restarts` nos pods são **cumulativos de múltiplos ciclos de boot** — valores altos (> 5, > 20, > 50) são **normais e esperados**, não indicam falha.
+  - O critério de saúde de pod deve ser baseado no **estado atual** (`CrashLoopBackOff`, `OOMKilled`, `Error`, `Pending > 5m`), nunca no contador histórico de restarts.
+  - Restarts devem ser reportados como **contexto informativo**, não como gatilho de severidade.
 
 ---
 

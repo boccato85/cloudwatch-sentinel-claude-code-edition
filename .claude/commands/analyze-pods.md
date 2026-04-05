@@ -18,10 +18,18 @@ Para cada namespace, execute:
 
 ## Critérios de pod unhealthy
 
-Considere um pod como unhealthy se:
-- Status for `CrashLoopBackOff`, `Error`, `OOMKilled`, `Evicted`, `Unknown`, `Terminating` (> 5min)
-- Status for `Pending` (> 5min)
-- RESTARTS for > 5
+**Ambiente Dev / Minikube:** O Minikube é desligado e religado entre sessões de trabalho. Contadores de `restarts` são cumulativos de múltiplos ciclos de boot e **não devem ser usados como critério de severidade**. Um pod com 30 restarts mas em estado `Running` é saudável neste ambiente.
+
+Considere um pod como unhealthy **apenas** se o estado atual for:
+- `CrashLoopBackOff` — falha ativa, reiniciando em loop agora
+- `OOMKilled` — encerrado por falta de memória
+- `Error` — saiu com código de erro
+- `Evicted` — removido por pressão de recursos
+- `Unknown` — nó inacessível
+- `Terminating` por mais de 5 minutos
+- `Pending` por mais de 5 minutos
+
+**Restarts:** Reporte o contador como campo informativo no JSON (`restarts: <n>`), mas **não contribui para `unhealthy_count`** nem eleva severidade.
 
 ## Formato de retorno obrigatório
 
