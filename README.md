@@ -2,7 +2,7 @@
 
 > Agente inteligente de monitoramento de clusters Kubernetes construído com Claude Code, sub-agents paralelos e MCP Servers.
 
-![Status](https://img.shields.io/badge/status-v1.1-brightgreen)
+![Status](https://img.shields.io/badge/status-v1.2-brightgreen)
 ![Claude Code](https://img.shields.io/badge/Claude%20Code-2.1.76-orange)
 ![Kubernetes](https://img.shields.io/badge/Kubernetes-v1.35.1-blue)
 ![Prometheus](https://img.shields.io/badge/Prometheus-kube--prometheus--stack-red)
@@ -107,7 +107,7 @@ kubectl get pods -n monitoring
 ### 2. Clona o repositório
 
 ```bash
-git clone https://github.com/<seu-usuario>/cloudwatch-sentinel
+git clone https://github.com/boccato85/cloudwatch-sentinel-claude-code-edition
 cd cloudwatch-sentinel
 ```
 
@@ -223,7 +223,33 @@ Pods Running: 16/16 | Deployments saudáveis: 7/7
 
 ---
 
+## Harness Engineering
+
+O projeto inclui um mecanismo de segurança para gravação de relatórios — o **Output Validator** (`harness/validador_saida.py`).
+
+Todo relatório final **deve** passar pelo validador antes de ser gravado em disco:
+
+```bash
+echo "<conteúdo>" | python3 harness/validador_saida.py > reports/relatorio_final.md
+```
+
+O validador aplica duas regras obrigatórias:
+
+| Regra | Comportamento |
+|---|---|
+| Bloqueia comandos destrutivos | Se o conteúdo contiver padrões como `rm -rf`, `kubectl delete`, `DROP TABLE` etc., a gravação é abortada |
+| Exige seção `## Resumo Executivo` | Relatórios sem essa seção são rejeitados — garante estrutura mínima de comunicação |
+
+Se qualquer regra for violada, o validador retorna erro e o arquivo **não é criado**.
+
+---
+
 ## Changelog
+
+### v1.2
+- `/startup`: adiciona **Fase 0** — verifica `minikube status` antes de qualquer ação; se `Stopped`, executa `minikube start` e aguarda `kubectl get nodes` retornar `Ready` com retry (20x, intervalo 15s)
+- Renomeia o projeto para **CloudWatch Sentinel - Claude Code Edition** em todos os arquivos e no repositório
+- Adiciona `.mcp.json` com configuração dos MCP servers (Prometheus e kubectl)
 
 ### v1.1
 - `/startup`: verifica e sobe port-forwards automaticamente antes de qualquer operação
