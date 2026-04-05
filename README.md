@@ -277,6 +277,4 @@ Se qualquer regra for violada, o validador retorna erro e o arquivo **não é cr
 
 Projeto desenvolvido para explorar na prática a arquitetura de agentes Claude Code com sub-agents paralelos e MCP Servers aplicada a um problema real de CloudOps — monitoramento e resposta a incidentes em clusters Kubernetes.
 
-Faz parte de uma trilha de estudos pessoal: **CKA → Claude Code → MLOps**.
-
 
