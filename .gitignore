@@ -4,6 +4,7 @@ __pycache__/
 *.pyo
 .env
 .env.*
+!.env.example
 *.log
 /tmp/
 # Go agent binaries
