@@ -1,13 +1,13 @@
-# 🛡️ sentinel
+# 🛡️ Sentinel
 
 <p align="center">
-  <img src="cw_sentinel_logo.png" alt="CloudWatch Sentinel Logo" width="180"/>
+  <img src="cw_sentinel_logo.png" alt="Sentinel Logo" width="180"/>
 </p>
 
 > Plataforma minimalista de observabilidade e FinOps para clusters Kubernetes — dashboard em tempo real, análise de incidentes com LLM e rastreamento de custo por pod.
 
 <p align="center">
-  <img src="cw_sentinel_ss.png" alt="CloudWatch Sentinel Dashboard" width="900"/>
+  <img src="cw_sentinel_ss.png" alt="Sentinel Dashboard" width="900"/>
 </p>
 
 ![Status](https://img.shields.io/badge/status-v2.0-brightgreen)
@@ -21,7 +21,7 @@
 
 ## O que é
 
-sentinel evoluiu de um agente de monitoramento reativo para uma plataforma completa de observabilidade e FinOps. A arquitetura combina duas camadas complementares:
+Sentinel evoluiu de um agente de monitoramento reativo para uma plataforma completa de observabilidade e FinOps. A arquitetura combina duas camadas complementares:
 
 - **Go Agent** — dashboard web proativo em tempo real (porta 8080), coleta contínua de métricas e histórico de custo por pod persistido no PostgreSQL
 - **Claude Code** — análise de incidentes sob demanda com raciocínio LLM, geração de runbooks e recomendações de remediação

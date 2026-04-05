@@ -1,4 +1,4 @@
-module cloudwatch-sentinel-agent
+module sentinel-agent
 
 go 1.25.8
 
