@@ -6,6 +6,10 @@
 
 > Plataforma de observabilidade e FinOps para clusters Kubernetes — dashboard em tempo real, análise de incidentes com LLM e rastreamento de custo por pod.
 
+<p align="center">
+  <img src="cw_sentinel_ss.png" alt="CloudWatch Sentinel Dashboard" width="900"/>
+</p>
+
 ![Status](https://img.shields.io/badge/status-v2.0-brightgreen)
 ![Claude Code](https://img.shields.io/badge/Claude%20Code-native-orange)
 ![Kubernetes](https://img.shields.io/badge/Kubernetes-v1.35.1-blue)

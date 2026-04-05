@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -20,6 +21,9 @@ import (
 	"k8s.io/client-go/util/homedir"
 	metricsv "k8s.io/metrics/pkg/client/clientset/versioned"
 )
+
+//go:embed static/icon.png
+var iconPNG []byte
 
 const (
 	USD_PER_VCPU_HOUR = 0.04
@@ -196,6 +200,12 @@ func main() {
 		w.Header().Set("Access-Control-Allow-Origin", "http://localhost:8080")
 	}
 
+	http.HandleFunc("/static/icon.png", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "image/png")
+		w.Header().Set("Cache-Control", "max-age=86400")
+		w.Write(iconPNG)
+	})
+
 	http.HandleFunc("/api/summary", func(w http.ResponseWriter, r *http.Request) {
 		setSecureHeaders(w)
 		statsMutex.Lock()
@@ -281,6 +291,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);font-
 /* GRID */
 .row-3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
 .row-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.row-tf{display:grid;grid-template-columns:3fr 2fr;gap:10px}
 /* PANEL */
 .panel{background:var(--surface);border:1px solid var(--border);border-radius:6px;overflow:hidden}
 .ph{padding:9px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:rgba(0,0,0,.18)}
@@ -345,7 +356,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);font-
 .util-pct{font-size:.74em;color:var(--text-dim);width:34px;text-align:right}
 .mono{font-family:'JetBrains Mono',monospace}
 /* LINE CHART */
-.line-area{height:190px;width:100%}
+.line-area{height:128px;width:100%}
 .line-legend{display:flex;gap:16px;font-size:.74em}
 .line-legend span{display:flex;align-items:center;gap:5px}
 .line-legend i{width:14px;height:2px;border-radius:2px;display:inline-block}
@@ -355,7 +366,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);font-
 <!-- HEADER -->
 <div class="hdr">
   <div style="display:flex;align-items:center">
-    <div class="logo"><div class="logo-tri"></div>SENTINEL</div>
+    <div class="logo"><img src="/static/icon.png" alt="Sentinel" style="width:30px;height:30px;object-fit:contain;margin-right:6px"/>SENTINEL</div>
     <div class="ctag">minikube / local</div>
   </div>
   <div class="hdr-r">
@@ -466,38 +477,41 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);font-
 
   </div>
 
-  <!-- TOP WORKLOADS TABLE -->
-  <div class="panel">
-    <div class="ph">
-      <span class="ph-title">Top Workloads by CPU Consumption</span>
-      <span class="ph-meta">Live &#183; 5s refresh</span>
-    </div>
-    <div class="pb" style="padding:0 16px 10px">
-      <table class="wtable">
-        <thead><tr>
-          <th style="width:30px">#</th>
-          <th>Pod Name</th>
-          <th>Namespace</th>
-          <th>CPU Usage</th>
-          <th>CPU Request</th>
-          <th>Utilization</th>
-          <th>Waste</th>
-        </tr></thead>
-        <tbody id="wbody"><tr><td colspan="7" style="text-align:center;color:var(--text-dim);padding:20px">Collecting data...</td></tr></tbody>
-      </table>
-    </div>
-  </div>
+  <!-- BOTTOM ROW: TOP WORKLOADS + FINANCIAL CORRELATION -->
+  <div class="row-tf">
 
-  <!-- FINANCIAL TIMELINE -->
-  <div class="panel">
-    <div class="ph">
-      <span class="ph-title">Financial Correlation &#8212; ROI Timeline (last 30 min)</span>
-      <div class="line-legend">
-        <span><i style="background:var(--red)"></i>Budget (Requested)</span>
-        <span><i style="background:var(--green)"></i>Actual (Usage)</span>
+    <div class="panel">
+      <div class="ph">
+        <span class="ph-title">Top Workloads by CPU Consumption</span>
+        <span class="ph-meta">Live &#183; 5s refresh</span>
+      </div>
+      <div class="pb" style="padding:0 16px 10px">
+        <table class="wtable">
+          <thead><tr>
+            <th style="width:30px">#</th>
+            <th>Pod Name</th>
+            <th>Namespace</th>
+            <th>CPU Usage</th>
+            <th>CPU Request</th>
+            <th>Utilization</th>
+            <th>Waste</th>
+          </tr></thead>
+          <tbody id="wbody"><tr><td colspan="7" style="text-align:center;color:var(--text-dim);padding:20px">Collecting data...</td></tr></tbody>
+        </table>
       </div>
     </div>
-    <div class="pb"><div class="line-area"><canvas id="mainLineChart"></canvas></div></div>
+
+    <div class="panel">
+      <div class="ph">
+        <span class="ph-title">Financial Correlation &#8212; ROI Timeline (last 30 min)</span>
+        <div class="line-legend">
+          <span><i style="background:var(--red)"></i>Budget (Requested)</span>
+          <span><i style="background:var(--green)"></i>Actual (Usage)</span>
+        </div>
+      </div>
+      <div class="pb"><div class="line-area"><canvas id="mainLineChart"></canvas></div></div>
+    </div>
+
   </div>
 
 </div><!-- /main -->
