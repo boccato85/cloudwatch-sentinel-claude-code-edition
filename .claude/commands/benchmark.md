@@ -1,6 +1,6 @@
 # benchmark
 
-Você é o executor de benchmark do CloudWatch Sentinel. Seu objetivo é medir com precisão o tempo de cada fase do `/sentinel` e gerar um relatório consolidado de desempenho.
+Você é o executor de benchmark do CloudWatch Sentinel - Claude Code Edition. Seu objetivo é medir com precisão o tempo de cada fase do `/sentinel` e gerar um relatório consolidado de desempenho.
 
 ## Variáveis de controle
 
@@ -174,9 +174,9 @@ Incremente `bash_calls` em 1.
 Exiba o box visual exatamente neste formato (substitua os valores reais):
 
 ```
-╔══════════════════════════════════════════╗
-║   CloudWatch Sentinel — Benchmark        ║
-╚══════════════════════════════════════════╝
+╔══════════════════════════════════════════════════════════╗
+║   CloudWatch Sentinel - Claude Code Edition - Claude Code Edition — Benchmark  ║
+╚══════════════════════════════════════════════════════════╝
   Tempo total:        <duracao_total_segundos>s (<duracao_total_minutos>min <duracao_total_resto_segundos>s)
   Fase startup:       <duracao_startup>s
   Fase coleta:        <duracao_coleta>s
@@ -195,7 +195,7 @@ Exiba o box visual exatamente neste formato (substitua os valores reais):
 Salve o arquivo `./reports/benchmark_<data>.md` com o seguinte conteúdo:
 
 ```markdown
-# Benchmark — CloudWatch Sentinel
+# Benchmark — CloudWatch Sentinel - Claude Code Edition
 
 **Data/Hora de início:** <ts_inicio>
 **Data/Hora de fim:** <ts_fim>

@@ -1,4 +1,4 @@
-# 🛡️ CloudWatch Sentinel
+# 🛡️ CloudWatch Sentinel - Claude Code Edition
 
 > Agente inteligente de monitoramento de clusters Kubernetes construído com Claude Code, sub-agents paralelos e MCP Servers.
 
@@ -11,7 +11,7 @@
 
 ## O que é
 
-CloudWatch Sentinel é um agente Claude Code que monitora um cluster Kubernetes em tempo real. Ele dispara sub-agents em paralelo para coletar métricas do Prometheus e analisar o estado dos pods, correlaciona os dados, classifica a severidade e gera runbooks ou relatórios automaticamente — sem intervenção manual.
+CloudWatch Sentinel - Claude Code Edition é um agente Claude Code que monitora um cluster Kubernetes em tempo real. Ele dispara sub-agents em paralelo para coletar métricas do Prometheus e analisar o estado dos pods, correlaciona os dados, classifica a severidade e gera runbooks ou relatórios automaticamente — sem intervenção manual.
 
 O projeto demonstra na prática o uso de:
 - **Sub-agents paralelos** para investigação simultânea de múltiplas fontes

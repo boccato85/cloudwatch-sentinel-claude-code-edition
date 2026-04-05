@@ -1,0 +1,20 @@
+{
+  "mcpServers": {
+    "prometheus": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "prometheus-mcp-server",
+        "--url",
+        "http://localhost:9090"
+      ]
+    },
+    "kubectl": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "kubectl-mcp-server"
+      ]
+    }
+  }
+}
