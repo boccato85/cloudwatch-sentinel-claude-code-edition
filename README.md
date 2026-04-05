@@ -15,6 +15,7 @@
 ![Kubernetes](https://img.shields.io/badge/Kubernetes-v1.35.1-blue)
 ![Go](https://img.shields.io/badge/Go-agent-00ADD8)
 ![Prometheus](https://img.shields.io/badge/Prometheus-kube--prometheus--stack-red)
+![License](https://img.shields.io/badge/license-Apache%202.0-blue)
 
 ---
 
@@ -287,3 +288,9 @@ Se qualquer regra for violada, o arquivo **não é criado**.
 ## Motivação
 
 Projeto desenvolvido para explorar na prática a evolução de um agente Claude Code simples de monitoramento até uma plataforma de observabilidade e FinOps — combinando coleta autônoma via Go, persistência com PostgreSQL, dashboard em tempo real e raciocínio LLM para análise de incidentes.
+
+---
+
+## Licença
+
+Distribuído sob a licença [Apache 2.0](LICENSE).
