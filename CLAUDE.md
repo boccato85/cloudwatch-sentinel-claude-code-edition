@@ -32,7 +32,7 @@ Este documento é sua bússola operacional: define contexto de ambiente, thresho
 
 O Go agent coleta métricas de forma proativa e contínua. O Claude Code atua na camada de análise e resposta a incidentes.
 
-1. **Bootstrap:** `/startup` — verifica Minikube e sobe port-forwards de Prometheus/Grafana/AlertManager.
+1. **Bootstrap:** `/startup` — verifica Minikube e inicia o Go agent.
 2. **Análise de incidente:** `/incident` — consome dados do Go agent, aplica raciocínio LLM e gera runbook.
 3. **Reporte:** Todo relatório passa pelo harness (`validador_saida.py`) antes de ser gravado em disco.
 
@@ -44,7 +44,6 @@ Execute os scripts abaixo via bash conforme necessário. O Claude Code tem permi
 
 | Ferramenta            | Comando                                          | Descrição                                                      |
 |-----------------------|--------------------------------------------------|----------------------------------------------------------------|
-| `monitor_cluster`     | `python3 tools/monitor.py`                       | Coleta métricas de CPU/Memória/Disco e status de pods (paralelo) |
 | `generate_report`     | `python3 tools/report_tool.py --severity <SEV> --content '<MD>'` | Gera relatório/runbook passando obrigatoriamente pelo harness  |
 | `sanitize_environment`| `rm -f *.json`                                   | Limpa arquivos temporários JSON                                |
 
@@ -69,17 +68,25 @@ make build    # apenas compila o binário
 ```
 
 **Endpoints expostos:**
-| Endpoint         | Descrição                                    |
-|------------------|----------------------------------------------|
-| `GET /`          | Dashboard Dynatrace-style (HTML)             |
-| `GET /api/summary`  | Estado do cluster (nodes, pods, CPU)      |
-| `GET /api/metrics`  | Métricas por pod (CPU usage, waste)       |
-| `GET /api/history`  | Histórico de custo (últimos 30 min)       |
+| Endpoint                      | Descrição                                    |
+|-------------------------------|----------------------------------------------|
+| `GET /`                       | Dashboard Dynatrace-style (HTML)             |
+| `GET /api/summary`            | Estado do cluster (nodes, pods, CPU)         |
+| `GET /api/metrics`            | Métricas por pod (CPU usage, waste)          |
+| `GET /api/history`            | Histórico de custo (30m default)             |
+| `GET /api/history?range=24h`  | Histórico das últimas 24 horas               |
+| `GET /api/history?range=7d`   | Histórico dos últimos 7 dias                 |
+| `GET /api/history?range=30d`  | Histórico dos últimos 30 dias                |
 
 **Dependências do agent:**
 - PostgreSQL local (`sentinel_db`) — configurável via env vars `DB_USER`, `DB_PASSWORD`, `DB_NAME`, `DB_HOST`
-- kubeconfig em `~/.kube/config`
+- kubeconfig em `~/.kube/config` (local) ou ServiceAccount (Kubernetes)
 - Metrics Server ativo no cluster
+
+**Retenção de dados (configurável):**
+- `RETENTION_RAW_HOURS=24` — métricas raw (granularidade ~10s)
+- `RETENTION_HOURLY_DAYS=30` — agregados por hora
+- `RETENTION_DAILY_DAYS=365` — agregados por dia
 
 ---
 
@@ -88,6 +95,7 @@ make build    # apenas compila o binário
 - Relatórios estáveis: `./reports/`
 - Procedimentos de emergência: `./runbooks/`
 - Agent Go (dashboard): `./agent/`
+- Helm chart: `./helm/sentinel/`
 - Dados brutos (temporários): raiz do projeto (limpos a cada ciclo)
 
 ---

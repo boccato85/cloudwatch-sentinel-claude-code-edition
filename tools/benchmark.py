@@ -6,6 +6,8 @@ Sentinel - Claude Code Edition
 Executa o pipeline completo (coleta → correlação → relatório),
 mede o tempo de cada fase e grava um FDR em reports/.
 
+Dados coletados via Sentinel Go agent (standalone, sem Prometheus).
+
 Thresholds lidos de config/thresholds.yaml — source of truth único.
 
 Uso:
@@ -51,7 +53,11 @@ def correlate(data: dict, thresholds: dict) -> tuple[str, list, list]:
     (cluster desligado/ligado entre sessões). Severidade é baseada exclusivamente
     no estado atual do pod e nas métricas de recursos.
     """
+    # Support both old "prometheus" key and new "sentinel" key
     metrics = data.get("prometheus", {}).get("metrics", {})
+    if not metrics:
+        metrics = data.get("sentinel", {}).get("metrics", {})
+    
     pods = data.get("kubernetes", {}).get("pods", [])
     issues = []
     info = []  # contexto informativo — não eleva severidade
@@ -78,7 +84,7 @@ def correlate(data: dict, thresholds: dict) -> tuple[str, list, list]:
         "Unknown": "WARNING",
     }
     for pod in pods:
-        if "error" in pod:
+        if "error" in pod or pod.get("summary"):
             continue
         reason = pod.get("waiting_reason") or pod.get("phase", "")
         if reason in active_bad_states:
@@ -113,6 +119,7 @@ Severidade detectada: **{stats['severity']}**.
 **Data/Hora de início:** {stats['ts_inicio'].strftime('%Y-%m-%dT%H:%M:%SZ')}
 **Data/Hora de fim:** {stats['ts_fim'].strftime('%Y-%m-%dT%H:%M:%SZ')}
 **Duração total:** {stats['duration_total']:.1f}s
+**Fonte de dados:** Sentinel Go Agent (standalone)
 
 ## Tempos por Fase
 
@@ -155,6 +162,7 @@ Severidade detectada: **{stats['severity']}**.
 - **Severidade detectada:** {stats['severity']}
 - **Namespaces verificados:** {namespaces_str}
 - **Thresholds lidos de:** config/thresholds.yaml
+- **Fonte de dados:** Sentinel Go Agent (não depende de Prometheus)
 """
 
     os.makedirs(REPORT_DIR, exist_ok=True)
@@ -189,20 +197,25 @@ def main():
     print(f"[BENCHMARK] Sanitização concluída em {stats['duration_sanitize']:.2f}s")
 
     # FASE 2 — Coleta
-    print("[BENCHMARK] Fase 2/4 — Coleta paralela...")
+    print("[BENCHMARK] Fase 2/4 — Coleta via Sentinel Go Agent...")
     t0 = time.time()
     try:
         data = run_monitor()
         stats["python_calls"] += 1
     except Exception as exc:
         print(f"[BENCHMARK] FAILED na coleta: {exc}")
+        print("[BENCHMARK] Dica: O Go agent está rodando? Inicie com: cd agent && make start")
         sys.exit(1)
     stats["duration_collect"] = time.time() - t0
 
+    # Support both old and new data structure
     metrics = data.get("prometheus", {}).get("metrics", {})
+    if not metrics:
+        metrics = data.get("sentinel", {}).get("metrics", {})
+    
     pods = data.get("kubernetes", {}).get("pods", [])
     stats["namespaces"] = data.get("kubernetes", {}).get("namespaces", [])
-    stats["pod_count"] = len([p for p in pods if "error" not in p])
+    stats["pod_count"] = len([p for p in pods if "error" not in p and not p.get("summary")])
 
     cpu_val, cpu_st = fmt_metric(metrics.get("cpu_usage_percent", {}))
     mem_val, mem_st = fmt_metric(metrics.get("memory_usage_percent", {}))
@@ -253,6 +266,7 @@ def main():
   Python calls:       {stats['python_calls']}
   Namespaces:         {len(stats['namespaces'])} analisados
   Severidade:         {stats['severity']}
+  Fonte de dados:     Sentinel Go Agent
   Relatório salvo:    {report_file}
 """)
 

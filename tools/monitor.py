@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-monitor.py — Coleta paralela de métricas
+monitor.py — Coleta de métricas via Sentinel Go Agent
 sentinel
 
-Coleta em paralelo:
-  - Status de pods via kubernetes-client (default, monitoring, kube-system)
-  - Métricas de CPU / Memória / Disco via Prometheus HTTP API
+Coleta dados do Go agent standalone:
+  - /api/summary — estado geral do cluster (nodes, pods, CPU)
+  - /api/metrics — métricas detalhadas por pod
 
-Saída: JSON em stdout para consumo pelo agente.
+Saída: JSON em stdout para consumo pelo benchmark.
 
 Uso:
     python3 tools/monitor.py
@@ -20,10 +20,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
 import yaml
-from kubernetes import client, config as k8s_config
 
-PROMETHEUS_URL = os.environ.get("PROMETHEUS_URL", "http://localhost:9090")
-NAMESPACES = ["default", "monitoring", "kube-system"]
+SENTINEL_URL = os.environ.get("SENTINEL_URL", "http://localhost:8080")
 THRESHOLDS_FILE = os.path.join(os.path.dirname(__file__), "..", "config", "thresholds.yaml")
 
 
@@ -32,48 +30,24 @@ def load_thresholds() -> dict:
         return yaml.safe_load(f)
 
 
-def get_prometheus_metric(query: str, name: str) -> dict:
+def get_sentinel_summary() -> dict:
+    """Fetch cluster summary from Go agent."""
     try:
-        resp = requests.get(
-            f"{PROMETHEUS_URL}/api/v1/query",
-            params={"query": query},
-            timeout=5,
-        )
+        resp = requests.get(f"{SENTINEL_URL}/api/summary", timeout=10)
         resp.raise_for_status()
-        result = resp.json().get("data", {}).get("result", [])
-        value = round(float(result[0]["value"][1]), 2) if result else None
-        return {"name": name, "value": value, "error": None}
-    except (requests.RequestException, ValueError, KeyError, IndexError) as exc:
-        return {"name": name, "value": None, "error": str(exc)}
+        return {"data": resp.json(), "error": None}
+    except requests.RequestException as exc:
+        return {"data": None, "error": str(exc)}
 
 
-def get_metrics() -> dict:
-    queries = {
-        "cpu_usage_percent": (
-            '100 - (avg(rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)'
-        ),
-        "memory_usage_percent": (
-            "100 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes * 100)"
-        ),
-        "disk_usage_percent": (
-            '100 - (node_filesystem_avail_bytes{mountpoint="/"} '
-            '/ node_filesystem_size_bytes{mountpoint="/"} * 100)'
-        ),
-    }
-
-    results = {}
-    with ThreadPoolExecutor(max_workers=3) as pool:
-        futures = {
-            pool.submit(get_prometheus_metric, q, name): name
-            for name, q in queries.items()
-        }
-        for future in as_completed(futures):
-            data = future.result()
-            results[data["name"]] = {
-                "value": data["value"],
-                "error": data["error"],
-            }
-    return results
+def get_sentinel_metrics() -> dict:
+    """Fetch per-pod metrics from Go agent."""
+    try:
+        resp = requests.get(f"{SENTINEL_URL}/api/metrics", timeout=10)
+        resp.raise_for_status()
+        return {"data": resp.json(), "error": None}
+    except requests.RequestException as exc:
+        return {"data": None, "error": str(exc)}
 
 
 def classify_metric(value, warning_threshold, critical_threshold) -> str:
@@ -86,62 +60,130 @@ def classify_metric(value, warning_threshold, critical_threshold) -> str:
     return "OK"
 
 
-def get_pod_status() -> list:
-    try:
-        k8s_config.load_kube_config()
-        v1 = client.CoreV1Api()
-        pods = []
-        for ns in NAMESPACES:
-            pod_list = v1.list_namespaced_pod(ns)
-            for pod in pod_list.items:
-                restarts = sum(
-                    (cs.restart_count or 0)
-                    for cs in (pod.status.container_statuses or [])
-                )
-                waiting_reason = None
-                for cs in pod.status.container_statuses or []:
-                    if cs.state and cs.state.waiting:
-                        waiting_reason = cs.state.waiting.reason
-                        break
-                pods.append({
-                    "namespace": ns,
-                    "name": pod.metadata.name,
-                    "phase": pod.status.phase,
-                    "restarts": restarts,
-                    "waiting_reason": waiting_reason,
-                })
-        return pods
-    except Exception as exc:
-        return [{"error": f"Kubernetes connection failed: {exc}"}]
+def extract_metrics_from_summary(summary: dict, thresholds: dict) -> dict:
+    """Extract and classify resource metrics from summary."""
+    metrics = {}
+    
+    # CPU usage from summary
+    cpu_val = summary.get("total_cpu_usage_millicores")
+    cpu_req = summary.get("total_cpu_request_millicores")
+    if cpu_val is not None and cpu_req is not None and cpu_req > 0:
+        cpu_pct = round((cpu_val / cpu_req) * 100, 2)
+    else:
+        cpu_pct = None
+    
+    th_cpu = thresholds.get("cpu", {})
+    metrics["cpu_usage_percent"] = {
+        "value": cpu_pct,
+        "error": None if cpu_pct is not None else "No CPU data",
+        "status": classify_metric(cpu_pct, th_cpu.get("warning", 70), th_cpu.get("critical", 85)),
+    }
+    
+    # Memory usage from summary
+    mem_val = summary.get("total_memory_usage_bytes")
+    mem_req = summary.get("total_memory_request_bytes")
+    if mem_val is not None and mem_req is not None and mem_req > 0:
+        mem_pct = round((mem_val / mem_req) * 100, 2)
+    else:
+        mem_pct = None
+    
+    th_mem = thresholds.get("memory", {})
+    metrics["memory_usage_percent"] = {
+        "value": mem_pct,
+        "error": None if mem_pct is not None else "No memory data",
+        "status": classify_metric(mem_pct, th_mem.get("warning", 75), th_mem.get("critical", 90)),
+    }
+    
+    # Disk is not tracked by Sentinel agent (node-level metric)
+    # Mark as N/A
+    metrics["disk_usage_percent"] = {
+        "value": None,
+        "error": "Disk metrics not collected by Sentinel agent",
+        "status": "UNKNOWN",
+    }
+    
+    return metrics
+
+
+def extract_pods_from_summary(summary: dict) -> list:
+    """Extract pod status from summary."""
+    pods = []
+    pod_count = summary.get("pod_count", 0)
+    running_pods = summary.get("running_pods", 0)
+    pending_pods = summary.get("pending_pods", 0)
+    failed_pods = summary.get("failed_pods", 0)
+    
+    # Summary-level info (detailed pod list comes from /api/metrics)
+    pods.append({
+        "summary": True,
+        "total": pod_count,
+        "running": running_pods,
+        "pending": pending_pods,
+        "failed": failed_pods,
+    })
+    
+    return pods
+
+
+def extract_detailed_pods(metrics_data: list) -> list:
+    """Extract detailed pod info from /api/metrics response."""
+    pods = []
+    for m in metrics_data or []:
+        pods.append({
+            "namespace": m.get("namespace", "unknown"),
+            "name": m.get("pod", "unknown"),
+            "phase": "Running" if m.get("cpu_usage_millicores") else "Unknown",
+            "cpu_millicores": m.get("cpu_usage_millicores"),
+            "memory_bytes": m.get("memory_usage_bytes"),
+            "restarts": 0,  # Not tracked by metrics endpoint
+            "waiting_reason": None,
+        })
+    return pods
 
 
 def main():
     thresholds = load_thresholds()
 
     with ThreadPoolExecutor(max_workers=2) as pool:
-        future_pods = pool.submit(get_pod_status)
-        future_metrics = pool.submit(get_metrics)
+        future_summary = pool.submit(get_sentinel_summary)
+        future_metrics = pool.submit(get_sentinel_metrics)
 
-    pods = future_pods.result()
-    metrics = future_metrics.result()
-
-    classified = {}
-    for metric_name, data in metrics.items():
-        key = metric_name.replace("_usage_percent", "").replace("_percent", "")
-        th = thresholds.get(key, {})
-        classified[metric_name] = {
-            **data,
-            "status": classify_metric(
-                data["value"],
-                th.get("warning", 70),
-                th.get("critical", 85),
-            ),
-        }
-
+    summary_result = future_summary.result()
+    metrics_result = future_metrics.result()
+    
+    # Handle errors
+    if summary_result["error"]:
+        print(json.dumps({
+            "error": f"Failed to connect to Sentinel agent: {summary_result['error']}",
+            "hint": "Is the Go agent running? Start with: cd agent && make start",
+        }, indent=2))
+        sys.exit(1)
+    
+    summary = summary_result["data"]
+    metrics_data = metrics_result["data"] if not metrics_result["error"] else []
+    
+    # Extract and classify metrics
+    classified_metrics = extract_metrics_from_summary(summary, thresholds)
+    
+    # Extract pods
+    detailed_pods = extract_detailed_pods(metrics_data)
+    namespaces = list(set(p.get("namespace", "default") for p in detailed_pods)) or ["default"]
+    
     output = {
-        "kubernetes": {"pods": pods, "namespaces": NAMESPACES},
-        "prometheus": {"metrics": classified},
+        "sentinel": {
+            "summary": summary,
+            "metrics": classified_metrics,
+        },
+        "kubernetes": {
+            "pods": detailed_pods,
+            "namespaces": namespaces,
+            "pod_count": summary.get("pod_count", 0),
+            "running_pods": summary.get("running_pods", 0),
+        },
+        # Backward compatibility: keep "prometheus" key for benchmark.py
+        "prometheus": {"metrics": classified_metrics},
         "thresholds_source": "config/thresholds.yaml",
+        "data_source": "sentinel-go-agent",
     }
 
     print(json.dumps(output, indent=2, ensure_ascii=False))
