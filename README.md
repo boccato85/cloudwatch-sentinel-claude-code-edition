@@ -10,11 +10,11 @@
   <img src="cw_sentinel_ss.png" alt="Sentinel Dashboard" width="900"/>
 </p>
 
-![Status](https://img.shields.io/badge/status-v1.6-brightgreen)
+![Status](https://img.shields.io/badge/status-v1.7-brightgreen)
 ![Claude Code](https://img.shields.io/badge/Claude%20Code-native-orange)
 ![Kubernetes](https://img.shields.io/badge/Kubernetes-v1.35.1-blue)
 ![Go](https://img.shields.io/badge/Go-agent-00ADD8)
-![Prometheus](https://img.shields.io/badge/Prometheus-kube--prometheus--stack-red)
+![Standalone](https://img.shields.io/badge/standalone-no%20Prometheus-green)
 ![License](https://img.shields.io/badge/license-Apache%202.0-blue)
 
 ---
@@ -29,7 +29,8 @@ Sentinel evoluiu de um agente de monitoramento reativo para uma plataforma compl
 O projeto demonstra na prática:
 - **Go agent** com Kubernetes client-go para coleta autônoma de métricas
 - **FinOps** — rastreamento de waste (recursos alocados vs utilizados) e histórico de custo por pod
-- **MCP Servers** para integração com Prometheus e kubectl
+- **Standalone** — não depende de Prometheus/Grafana/AlertManager
+- **MCP Server** para integração com kubectl
 - **CLAUDE.md** como contexto operacional persistente
 - **Slash commands** como interface de resposta a incidentes
 
@@ -41,7 +42,7 @@ O projeto demonstra na prática:
 ┌─────────────────────────────────────────────────────┐
 │                   Go Agent (porta 8080)             │
 │  coleta contínua → PostgreSQL → dashboard em tempo  │
-│  real com custo por pod e histórico de 30min        │
+│  real com custo por pod e histórico configurável    │
 └───────────────────────┬─────────────────────────────┘
                         │ /api/summary /api/metrics /api/history
                         ▼
@@ -49,7 +50,7 @@ O projeto demonstra na prática:
 │                  Claude Code                        │
 │                                                     │
 │  /startup                                           │
-│    └─ Minikube + port-forwards + Go agent           │
+│    └─ Minikube + Go agent                           │
 │                                                     │
 │  /incident                                          │
 │    └─ consome API do Go agent                       │
@@ -66,11 +67,10 @@ O projeto demonstra na prática:
 | Camada | Tecnologia |
 |---|---|
 | Cluster | Minikube (KVM2) — Kubernetes v1.35.1 |
-| Monitoramento | kube-prometheus-stack (Prometheus + Grafana + AlertManager) |
 | Dashboard | Go agent (Kubernetes client-go + net/http) |
 | Persistência | PostgreSQL (`sentinel_db`) |
 | Agente LLM | Claude Code |
-| Integrações | MCP Server Prometheus + MCP Server kubectl |
+| Integrações | MCP Server kubectl |
 | Output | Runbooks e relatórios em Markdown (validados pelo harness) |
 
 ---
@@ -78,30 +78,16 @@ O projeto demonstra na prática:
 ## Pré-requisitos
 
 - [Claude Code](https://claude.ai/code) instalado e autenticado
-- Minikube rodando com o namespace `monitoring`
-- Helm 3.x
-- Go 1.21+
+- Minikube rodando
+- Go 1.23+
 - PostgreSQL local com database `sentinel_db`
-- Node.js (para os MCP Servers via npx)
+- Node.js (para o MCP Server via npx)
 
 ---
 
 ## Setup
 
-### 1. Stack de monitoramento
-
-```bash
-helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-helm repo update
-
-kubectl create namespace monitoring
-
-helm install prometheus-stack prometheus-community/kube-prometheus-stack \
-  --namespace monitoring \
-  --set grafana.adminPassword=admin123
-```
-
-### 2. PostgreSQL
+### 1. PostgreSQL
 
 ```bash
 createdb sentinel_db
@@ -118,17 +104,16 @@ export DB_SSLMODE=disable
 export DB_TIMEOUT_SEC=5
 ```
 
-### 3. Clone e MCP Servers
+### 2. Clone e MCP Server
 
 ```bash
 git clone https://github.com/boccato85/Sentinel
 cd sentinel
 
-claude mcp add prometheus -- npx -y prometheus-mcp-server
 claude mcp add kubectl -- npx -y kubectl-mcp-server
 ```
 
-### 4. Go Agent
+### 3. Go Agent
 
 **Opção A: Standalone (desenvolvimento local)**
 
@@ -143,11 +128,11 @@ make start   # inicia o serviço (ou use /startup que faz isso automaticamente)
 ```bash
 # Build da imagem no Minikube
 cd agent
-minikube image build -t sentinel:v1.5 .
+minikube image build -t sentinel:v1.6 .
 
 # Deploy no namespace sentinel
 helm install sentinel helm/sentinel -n sentinel --create-namespace \
-  --set image.tag=v1.5 \
+  --set image.tag=v1.6 \
   --set image.pullPolicy=Never
 
 # Verificar status
@@ -175,13 +160,15 @@ claude
 ```
 /startup
 ```
-Verifica Minikube, sobe port-forwards de Prometheus/Grafana/AlertManager e inicia o Go agent se estiver down. Output:
+Verifica Minikube e inicia o Go agent se estiver down. Output:
 
 ```
- Prometheus    (localhost:9090)  →  ✅ OK
- Grafana       (localhost:3000)  →  ✅ STARTED
- AlertManager  (localhost:9093)  →  ✅ OK
- Go Agent      (localhost:8080)  →  ✅ STARTED
+╔═══════════════════════════════════════════════════════════╗
+║                    Sentinel — Startup                     ║
+╚═══════════════════════════════════════════════════════════╝
+
+ Minikube      (cluster)          →  ✅ OK
+ Go Agent      (localhost:8080)   →  ✅ STARTED
 ```
 
 **Análise de incidente:**
@@ -315,14 +302,14 @@ sentinel/
 ├── config/
 │   └── thresholds.yaml              # Source of truth único de thresholds
 ├── tools/
-│   ├── monitor.py                   # Coleta paralela K8s + Prometheus
+│   ├── monitor.py                   # Coleta via Sentinel Go agent API
 │   └── report_tool.py               # Gravação segura via harness
 ├── harness/
 │   ├── validador_saida.py           # Gatekeeper: bloqueia destrutivos, exige Resumo Executivo
 │   └── test_validador_saida.py      # Testes unitários (16 tests)
 ├── .claude/
 │   └── commands/
-│       ├── startup.md               # Bootstrap: Minikube + port-forwards + Go agent
+│       ├── startup.md               # Bootstrap: Minikube + Go agent
 │       └── incident.md              # Análise LLM + runbook via Go agent API
 ├── runbooks/                         # Runbooks CRITICAL gerados
 └── reports/                         # Relatórios WARNING/OK gerados
@@ -351,6 +338,12 @@ export HARNESS_TIMEOUT_SEC=10
 ---
 
 ## Changelog
+
+### v1.7
+- **Standalone completo** — removida toda dependência de Prometheus/Grafana/AlertManager
+- `tools/monitor.py` reescrito para usar API do Go agent (`/api/summary`, `/api/metrics`)
+- `/startup` simplificado — apenas verifica Minikube e Go agent
+- Removido MCP Server prometheus do `.mcp.json`
 
 ### v1.6
 - **Retenção configurável** — política de retenção em 3 camadas (raw/hourly/daily) com cleanup automático
