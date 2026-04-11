@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Sentinel | Cluster Observatory</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/dashboard.css">
+</head>
+<body>
+<!-- HEADER -->
+<div class="hdr">
+  <div style="display:flex;align-items:center">
+    <div class="logo"><img src="/static/icon.png" alt="Sentinel" style="width:30px;height:30px;object-fit:contain;margin-right:6px"/>SENTINEL</div>
+    <div class="ctag">minikube / local</div>
+  </div>
+  <div class="hdr-r">
+    <div class="spill"><div class="sdot"></div>Connected</div>
+    <span id="lastUp">Updating...</span>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- KPI STRIP -->
+  <div class="kpi-row">
+    <div class="kpi c-cyan">
+      <div class="kpi-lbl">Total Nodes</div>
+      <div class="kpi-val" id="kN">--</div>
+      <div class="kpi-sub" id="kNs">Checking...</div>
+    </div>
+    <div class="kpi c-green">
+      <div class="kpi-lbl">Running Pods</div>
+      <div class="kpi-val" id="kR">--</div>
+      <div class="kpi-sub" id="kRs">of -- total</div>
+    </div>
+    <div class="kpi c-red">
+      <div class="kpi-lbl">Failed / Pending</div>
+      <div class="kpi-val" id="kF">--</div>
+      <div class="kpi-sub" id="kFs">-- pending</div>
+    </div>
+    <div class="kpi c-orange">
+      <div class="kpi-lbl">CPU Efficiency</div>
+      <div class="kpi-val" id="kE">--%</div>
+      <div class="kpi-sub" id="kEs">req / alloc</div>
+    </div>
+    <div class="kpi c-purple">
+      <div class="kpi-lbl">Top CPU Consumer</div>
+      <div class="kpi-val mono" id="kT">--m</div>
+      <div class="kpi-sub" id="kTs" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">--</div>
+    </div>
+    <div class="kpi c-yellow">
+      <div class="kpi-lbl">Waste Opportunities</div>
+      <div class="kpi-val" id="kW">--</div>
+      <div class="kpi-sub">pods oversized</div>
+    </div>
+  </div>
+
+  <!-- ROW: NODE MAP | POD PHASES | ALERTS -->
+  <div class="row-3">
+
+    <div class="panel">
+      <div class="ph"><span class="ph-title">Node Health Map</span><span class="badge b-ok" id="nbadge">OK</span></div>
+      <div class="pb">
+        <div class="hcomb" id="honeycomb"></div>
+        <div class="hleg">
+          <span><b style="background:var(--green)"></b>Healthy</span>
+          <span><b style="background:var(--red)"></b>Issue</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="ph"><span class="ph-title">Pod Distribution</span></div>
+      <div class="pb">
+        <div class="dnut-wrap">
+          <div class="dnut-canvas"><canvas id="phaseDonut"></canvas></div>
+          <div class="legend" id="phaseLegend"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="ph"><span class="ph-title">Active Alerts</span><span class="badge b-ok" id="abadge">0 Issues</span></div>
+      <div class="pb" id="alertsBox">
+        <div class="alert ok"><span class="alert-ico" style="color:var(--green)">&#10003;</span><div>Cluster Healthy</div></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ROW: CPU ALLOCATION | FINOPS -->
+  <div class="row-2">
+
+    <div class="panel">
+      <div class="ph"><span class="ph-title">CPU Resource Allocation</span><span class="badge b-ok" id="cpubadge">Optimal</span></div>
+      <div class="pb">
+        <div class="dnut-wrap">
+          <div class="dnut-canvas"><canvas id="cpuDonut"></canvas></div>
+          <div class="cpu-side">
+            <div class="bar-row">
+              <div class="bar-head"><span>Requested</span><em id="cpuReqV">--m</em></div>
+              <div class="bar-bg"><div class="bar-fill" id="cpuReqB" style="width:0%;background:var(--cyan)"></div></div>
+            </div>
+            <div class="bar-row">
+              <div class="bar-head"><span>Allocatable</span><em id="cpuAlcV">--m</em></div>
+              <div class="bar-bg"><div class="bar-fill" style="width:100%;background:rgba(45,51,71,.8)"></div></div>
+            </div>
+            <div class="eff-big" id="effBig">--%</div>
+            <div class="eff-lbl">efficiency ratio</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="ph"><span class="ph-title">Waste Intelligence (FinOps)</span><span class="badge b-warn" id="wcnt">Scanning...</span></div>
+      <div class="pb" id="wasteList">
+        <div style="color:var(--text-dim);font-size:.84em">Collecting metrics...</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- BOTTOM ROW: TOP WORKLOADS + FINANCIAL CORRELATION -->
+  <div class="row-tf">
+
+    <div class="panel">
+      <div class="ph">
+        <span class="ph-title">Top Workloads by CPU Consumption</span>
+        <span class="ph-meta">Live &#183; 5s refresh</span>
+      </div>
+      <div class="pb" style="padding:0 16px 10px">
+        <table class="wtable">
+          <thead><tr>
+            <th style="width:30px">#</th>
+            <th>Pod Name</th>
+            <th>Namespace</th>
+            <th>CPU Usage</th>
+            <th>CPU Request</th>
+            <th>Utilization</th>
+            <th>Waste</th>
+          </tr></thead>
+          <tbody id="wbody"><tr><td colspan="7" style="text-align:center;color:var(--text-dim);padding:20px">Collecting data...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="ph">
+        <span class="ph-title">Financial Correlation &#8212; ROI Timeline (last 30 min)</span>
+        <div class="line-legend">
+          <span><i style="background:var(--red)"></i>Budget (Requested)</span>
+          <span><i style="background:var(--green)"></i>Actual (Usage)</span>
+        </div>
+      </div>
+      <div class="pb"><div class="line-area"><canvas id="mainLineChart"></canvas></div></div>
+    </div>
+
+  </div>
+
+</div><!-- /main -->
+
+<script src="/static/dashboard.js"></script>
+</body>
+</html>

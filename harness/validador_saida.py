@@ -11,6 +11,7 @@ Uso:
 """
 
 import sys
+import re
 
 
 FORBIDDEN_PATTERNS = [
@@ -26,12 +27,31 @@ FORBIDDEN_PATTERNS = [
     ":(){:|:&};:",  # fork bomb
 ]
 
+FORBIDDEN_REGEX_PATTERNS = [
+    (r"\brm\s+-rf\b", "rm -rf"),
+    (r"\bkubectl\s+delete\b", "kubectl delete"),
+    (r"\bdrop\s+table\b", "DROP TABLE"),
+    (r"\bdrop\s+database\b", "DROP DATABASE"),
+    (r"\btruncate\s+table\b", "TRUNCATE TABLE"),
+    (r"\bdd\s+if\s*=", "dd if="),
+    (r"\bmkfs\b", "mkfs"),
+    (r">\s*/dev/", "> /dev/"),
+    (r"\bformat\s+c:", "format c:"),
+    (r":\(\)\{\s*:\|:&\s*\};:", ":(){:|:&};:"),
+]
+
 REQUIRED_SECTION = "## Resumo Executivo"
 MIN_LENGTH = 100
 
 
+def normalize_for_detection(text: str) -> str:
+    lowered = text.casefold()
+    return re.sub(r"\s+", " ", lowered).strip()
+
+
 def validate(text: str) -> list[str]:
     errors = []
+    normalized = normalize_for_detection(text)
 
     if len(text.strip()) < MIN_LENGTH:
         errors.append(
@@ -49,6 +69,12 @@ def validate(text: str) -> list[str]:
         if pattern in text:
             errors.append(
                 f"Comando destrutivo bloqueado: '{pattern}'. "
+                "Remova o padrão antes de salvar."
+            )
+    for regex, label in FORBIDDEN_REGEX_PATTERNS:
+        if re.search(regex, normalized, flags=re.IGNORECASE):
+            errors.append(
+                f"Comando destrutivo bloqueado: '{label}'. "
                 "Remova o padrão antes de salvar."
             )
 

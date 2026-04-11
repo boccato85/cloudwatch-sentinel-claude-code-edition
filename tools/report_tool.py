@@ -15,6 +15,7 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 from datetime import datetime, timezone
 
 
@@ -25,30 +26,55 @@ RUNBOOK_DIR = os.path.join(os.path.dirname(__file__), "..", "runbooks")
 
 def validate_and_write(content: str, filepath: str) -> dict:
     """Passa o conteúdo pelo validador antes de gravar."""
+    timeout_sec = int(os.getenv("HARNESS_TIMEOUT_SEC", "10"))
+    if timeout_sec <= 0:
+        timeout_sec = 10
+
     try:
         result = subprocess.run(
             [sys.executable, HARNESS],
             input=content,
             capture_output=True,
             text=True,
-            timeout=10,
+            timeout=timeout_sec,
         )
     except FileNotFoundError:
         return {"status": "error", "message": f"Harness não encontrado: {HARNESS}", "file": None}
     except subprocess.TimeoutExpired:
-        return {"status": "error", "message": "Timeout na validação do harness (>10s)", "file": None}
+        return {"status": "error", "message": f"Timeout na validação do harness (>{timeout_sec}s)", "file": None}
 
     if result.returncode != 0:
+        detail = result.stderr.strip() or result.stdout.strip() or "sem detalhes adicionais"
         return {
             "status": "error",
-            "message": f"Validador bloqueou a gravação: {result.stderr.strip()}",
+            "message": f"Validador bloqueou a gravação (exit={result.returncode}): {detail}",
             "file": None,
         }
 
     os.makedirs(os.path.dirname(filepath), exist_ok=True, mode=0o700)
-    fd = os.open(filepath, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, "w", encoding="utf-8") as f:
-        f.write(result.stdout)
+    tmp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            delete=False,
+            dir=os.path.dirname(filepath),
+            prefix=".tmp_report_",
+        ) as tmp:
+            tmp.write(result.stdout)
+            tmp.flush()
+            os.fsync(tmp.fileno())
+            tmp_path = tmp.name
+        os.chmod(tmp_path, 0o600)
+        os.replace(tmp_path, filepath)
+    except OSError as exc:
+        if tmp_path and os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+        return {
+            "status": "error",
+            "message": f"Falha ao gravar relatório de forma atômica: {exc}",
+            "file": None,
+        }
 
     return {
         "status": "success",

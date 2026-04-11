@@ -114,6 +114,8 @@ export DB_USER=postgres
 export DB_PASSWORD=postgres
 export DB_NAME=sentinel_db
 export DB_HOST=localhost
+export DB_SSLMODE=disable
+export DB_TIMEOUT_SEC=5
 ```
 
 ### 3. Clone e MCP Servers
@@ -171,7 +173,7 @@ Após o `/startup`, acesse `http://localhost:8080`.
 |---|---|
 | `GET /` | Dashboard Dynatrace-style (HTML) |
 | `GET /api/summary` | Estado do cluster: nodes, pods, CPU |
-| `GET /api/metrics` | Métricas por pod: CPU usage, waste |
+| `GET /api/metrics` | Métricas por pod: CPU usage, waste (`cpuRequestPresent`, `potentialSavingMCpu`) |
 | `GET /api/history` | Histórico de custo dos últimos 30 min |
 
 Gerenciamento manual:
@@ -258,6 +260,12 @@ Todo relatório final passa pelo `harness/validador_saida.py` antes de ser grava
 | Tamanho mínimo | Conteúdo menor que 100 caracteres é rejeitado |
 
 Se qualquer regra for violada, o arquivo **não é criado**.
+
+Variáveis úteis do fluxo de relatório:
+
+```bash
+export HARNESS_TIMEOUT_SEC=10
+```
 
 ---
 
