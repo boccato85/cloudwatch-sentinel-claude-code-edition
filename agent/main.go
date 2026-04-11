@@ -25,6 +25,7 @@ import (
 	"golang.org/x/time/rate"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/homedir"
 	metricsv "k8s.io/metrics/pkg/client/clientset/versioned"
@@ -142,6 +143,27 @@ func logSQLError(operation string, err error) {
 	slog.Warn("sql operation failed", "operation", operation, "err", err)
 }
 
+func ensureSchema(ctx context.Context) error {
+	schema := `
+	CREATE TABLE IF NOT EXISTS metrics (
+		id SERIAL PRIMARY KEY,
+		pod_name VARCHAR(255) NOT NULL,
+		namespace VARCHAR(255) NOT NULL,
+		container_name VARCHAR(255) NOT NULL,
+		cpu_usage BIGINT NOT NULL,
+		cpu_request BIGINT NOT NULL,
+		mem_usage BIGINT NOT NULL,
+		mem_request BIGINT NOT NULL,
+		opportunity VARCHAR(50),
+		recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	);
+	CREATE INDEX IF NOT EXISTS idx_metrics_recorded_at ON metrics(recorded_at);
+	CREATE INDEX IF NOT EXISTS idx_metrics_pod ON metrics(namespace, pod_name);
+	`
+	_, err := db.ExecContext(ctx, schema)
+	return err
+}
+
 func getPodRequest(podRequestMap map[string]map[string]int64, namespace, name string) (int64, bool) {
 	nsReqs, nsFound := podRequestMap[namespace]
 	if !nsFound {
@@ -229,6 +251,7 @@ func main() {
 	dbPass := requireEnv("DB_PASSWORD")
 	dbName := getEnv("DB_NAME", "sentinel_db")
 	dbHost := getEnv("DB_HOST", "localhost")
+	dbPort := getEnv("DB_PORT", "5432")
 	// NOTE: Default "disable" is intentional for local dev (Minikube).
 	// For production, set DB_SSLMODE=require or verify-full.
 	sslMode := getEnv("DB_SSLMODE", "disable")
@@ -237,9 +260,10 @@ func main() {
 		slog.Warn("PostgreSQL SSL is disabled — set DB_SSLMODE=require for production")
 	}
 
-	connStr := fmt.Sprintf("host=%s user=%s password=%s dbname=%s sslmode=%s",
-		dbHost, dbUser, dbPass, dbName, sslMode)
+	connStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s connect_timeout=10",
+		dbHost, dbPort, dbUser, dbPass, dbName, sslMode)
 
+	slog.Info("connecting to PostgreSQL", "host", dbHost, "port", dbPort, "database", dbName)
 	var err error
 	db, err = sql.Open("postgres", connStr)
 	if err != nil {
@@ -260,16 +284,36 @@ func main() {
 		os.Exit(1)
 	}
 
-	slog.Info("Sentinel Intelligence Engine: Active")
-
-	home := homedir.HomeDir()
-	k8sCfg, err := clientcmd.BuildConfigFromFlags("", filepath.Join(home, ".kube", "config"))
-	if err != nil {
-		slog.Error("failed to load kubeconfig", "err", err)
+	// Ensure database schema exists
+	schemaCtx, schemaCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	if err = ensureSchema(schemaCtx); err != nil {
+		schemaCancel()
+		slog.Error("failed to create database schema", "err", err)
 		os.Exit(1)
 	}
+	schemaCancel()
+	slog.Info("database schema verified")
 
-	clientset, err := kubernetes.NewForConfig(k8sCfg)
+	slog.Info("Sentinel Intelligence Engine: Active")
+
+	// Try in-cluster config first (for running in Kubernetes)
+	// Fall back to local kubeconfig for development
+	var k8sCfg *rest.Config
+	k8sCfg, err = rest.InClusterConfig()
+	if err != nil {
+		slog.Info("not running in cluster, trying local kubeconfig")
+		home := homedir.HomeDir()
+		k8sCfg, err = clientcmd.BuildConfigFromFlags("", filepath.Join(home, ".kube", "config"))
+		if err != nil {
+			slog.Error("failed to load kubeconfig", "err", err)
+			os.Exit(1)
+		}
+	} else {
+		slog.Info("using in-cluster Kubernetes config")
+	}
+
+	var clientset *kubernetes.Clientset
+	clientset, err = kubernetes.NewForConfig(k8sCfg)
 	if err != nil {
 		slog.Error("failed to create k8s client", "err", err)
 		os.Exit(1)

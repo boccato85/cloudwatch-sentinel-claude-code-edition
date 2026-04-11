@@ -130,11 +130,38 @@ claude mcp add kubectl -- npx -y kubectl-mcp-server
 
 ### 4. Go Agent
 
+**Opção A: Standalone (desenvolvimento local)**
+
 ```bash
 cd agent
 make build   # compila o binário
 make start   # inicia o serviço (ou use /startup que faz isso automaticamente)
 ```
+
+**Opção B: Deploy no Kubernetes via Helm**
+
+```bash
+# Build da imagem no Minikube
+cd agent
+minikube image build -t sentinel:v1.5 .
+
+# Deploy no namespace sentinel
+helm install sentinel helm/sentinel -n sentinel --create-namespace \
+  --set image.tag=v1.5 \
+  --set image.pullPolicy=Never
+
+# Verificar status
+kubectl get pods -n sentinel
+
+# Acessar o dashboard
+kubectl port-forward -n sentinel svc/sentinel 8080:8080
+```
+
+O chart inclui:
+- Deployment do Go agent com ServiceAccount e RBAC
+- PostgreSQL interno (ou externo via `postgresql.external=true`)
+- ConfigMap e Secret para configuração
+- Service ClusterIP na porta 8080
 
 ---
 
@@ -230,20 +257,27 @@ sentinel/
 ├── .gitignore
 ├── agent/
 │   ├── main.go                      # Go agent: dashboard + coleta + PostgreSQL
+│   ├── Dockerfile                   # Build multi-stage para Kubernetes
 │   ├── go.mod / go.sum
 │   └── Makefile                     # build, start, stop, restart, status, logs
+├── helm/
+│   └── sentinel/                    # Helm chart para deploy no Kubernetes
+│       ├── Chart.yaml
+│       ├── values.yaml
+│       └── templates/
 ├── config/
 │   └── thresholds.yaml              # Source of truth único de thresholds
 ├── tools/
 │   ├── monitor.py                   # Coleta paralela K8s + Prometheus
 │   └── report_tool.py               # Gravação segura via harness
 ├── harness/
-│   └── validador_saida.py           # Gatekeeper: bloqueia destrutivos, exige Resumo Executivo
+│   ├── validador_saida.py           # Gatekeeper: bloqueia destrutivos, exige Resumo Executivo
+│   └── test_validador_saida.py      # Testes unitários (16 tests)
 ├── .claude/
 │   └── commands/
 │       ├── startup.md               # Bootstrap: Minikube + port-forwards + Go agent
 │       └── incident.md              # Análise LLM + runbook via Go agent API
-├── runbooks/                        # Runbooks CRITICAL gerados
+├── runbooks/                         # Runbooks CRITICAL gerados
 └── reports/                         # Relatórios WARNING/OK gerados
 ```
 
@@ -272,6 +306,9 @@ export HARNESS_TIMEOUT_SEC=10
 ## Changelog
 
 ### v1.5
+- **Helm chart** — deploy completo no Kubernetes com `helm install sentinel helm/sentinel -n sentinel`
+- **InClusterConfig** — Go agent detecta automaticamente se está rodando dentro do cluster
+- **Auto-schema** — tabela `metrics` criada automaticamente no startup
 - **Security hardening** — connection pool PostgreSQL, rate limiting (100 rps), bind address configurável
 - **Harness** — normalização Unicode (NFKC), limite de input (10MB), cobertura de testes expandida (16 tests)
 - **Tools** — sanitização de `--component` contra path traversal, timeout com clamping seguro

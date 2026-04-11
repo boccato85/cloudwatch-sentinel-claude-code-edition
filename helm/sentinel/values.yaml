@@ -1,0 +1,90 @@
+# Sentinel Helm Chart Values
+
+replicaCount: 1
+
+image:
+  repository: sentinel
+  tag: "1.5.0"
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 8080
+
+# Resource limits
+resources:
+  limits:
+    cpu: 200m
+    memory: 128Mi
+  requests:
+    cpu: 100m
+    memory: 64Mi
+
+# PostgreSQL configuration
+postgresql:
+  # Use external PostgreSQL or deploy one via subchart
+  external: false
+  # External PostgreSQL settings (if external: true)
+  host: ""
+  port: 5432
+  # Internal PostgreSQL settings (if external: false)
+  image:
+    repository: postgres
+    tag: "15-alpine"
+  storage:
+    size: 1Gi
+    storageClass: ""
+  resources:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+# Database credentials (will be stored in Secret)
+database:
+  name: sentinel_db
+  user: sentinel
+  password: sentinel123
+  sslmode: disable
+
+# Agent configuration
+agent:
+  listenAddr: "0.0.0.0:8080"
+  rateLimitRps: 100
+  dbTimeoutSec: 5
+
+# Ingress configuration (optional)
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: sentinel.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+# ServiceAccount
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+# RBAC for reading cluster metrics
+rbac:
+  create: true
+
+# Pod annotations
+podAnnotations: {}
+
+# Node selector
+nodeSelector: {}
+
+# Tolerations
+tolerations: []
+
+# Affinity
+affinity: {}

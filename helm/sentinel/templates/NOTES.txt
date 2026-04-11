@@ -1,0 +1,35 @@
+# Sentinel Chart NOTES
+
+Obrigado por instalar o Sentinel!
+
+## Status
+
+Para verificar o status do deploy:
+
+    kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/name={{ include "sentinel.name" . }}
+
+## Acesso ao Dashboard
+
+{{- if .Values.ingress.enabled }}
+O dashboard está disponível em:
+{{- range .Values.ingress.hosts }}
+  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}
+{{- end }}
+{{- else }}
+
+Para acessar o dashboard localmente, use port-forward:
+
+    kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "sentinel.fullname" . }} 8080:{{ .Values.service.port }}
+
+Então acesse: http://localhost:8080
+{{- end }}
+
+## Endpoints da API
+
+- GET /api/summary  - Estado do cluster (nodes, pods, CPU)
+- GET /api/metrics  - Métricas por pod (CPU usage, waste)
+- GET /api/history  - Histórico de custo (últimos 30 min)
+
+## Logs
+
+    kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/name={{ include "sentinel.name" . }} -f
