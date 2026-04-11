@@ -13,6 +13,7 @@ Uso:
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -24,11 +25,24 @@ REPORT_DIR = os.path.join(os.path.dirname(__file__), "..", "reports")
 RUNBOOK_DIR = os.path.join(os.path.dirname(__file__), "..", "runbooks")
 
 
+def sanitize_component(name: str) -> str:
+    """Sanitize component name to prevent path traversal. Allows alphanumeric, dash, underscore."""
+    sanitized = re.sub(r"[^a-zA-Z0-9_-]", "_", name)
+    return sanitized[:50]  # limit length
+
+
+def get_safe_timeout() -> int:
+    """Get timeout with validation and clamping to safe range (1-60s)."""
+    try:
+        val = int(os.getenv("HARNESS_TIMEOUT_SEC", "10"))
+    except ValueError:
+        return 10
+    return max(1, min(val, 60))
+
+
 def validate_and_write(content: str, filepath: str) -> dict:
     """Passa o conteúdo pelo validador antes de gravar."""
-    timeout_sec = int(os.getenv("HARNESS_TIMEOUT_SEC", "10"))
-    if timeout_sec <= 0:
-        timeout_sec = 10
+    timeout_sec = get_safe_timeout()
 
     try:
         result = subprocess.run(
@@ -106,7 +120,8 @@ def main():
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S")
 
     if args.severity == "CRITICAL":
-        filepath = os.path.join(RUNBOOK_DIR, f"{ts}_CRITICAL_{args.component}.md")
+        safe_component = sanitize_component(args.component)
+        filepath = os.path.join(RUNBOOK_DIR, f"{ts}_CRITICAL_{safe_component}.md")
     else:
         filepath = os.path.join(REPORT_DIR, f"{ts}_{args.severity}.md")
 

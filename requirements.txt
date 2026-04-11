@@ -1,0 +1,11 @@
+# Sentinel Python Dependencies
+# Install: pip install -r requirements.txt
+
+# Kubernetes client for pod/metrics collection
+kubernetes>=28.0.0
+
+# HTTP client for Prometheus API
+requests>=2.31.0
+
+# YAML config parsing
+PyYAML>=6.0

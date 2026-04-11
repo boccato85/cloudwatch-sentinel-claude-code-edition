@@ -12,6 +12,10 @@ Uso:
 
 import sys
 import re
+import unicodedata
+
+
+MAX_INPUT_SIZE = 10 * 1024 * 1024  # 10MB
 
 
 FORBIDDEN_PATTERNS = [
@@ -44,13 +48,30 @@ REQUIRED_SECTION = "## Resumo Executivo"
 MIN_LENGTH = 100
 
 
+def normalize_unicode(text: str) -> str:
+    """Normalize Unicode to canonical form and remove invisible control chars."""
+    # NFKC normalizes lookalike characters to their canonical equivalents
+    normalized = unicodedata.normalize("NFKC", text)
+    # Remove format/invisible control characters (category 'Cf')
+    return "".join(c for c in normalized if unicodedata.category(c) != "Cf")
+
+
 def normalize_for_detection(text: str) -> str:
-    lowered = text.casefold()
+    cleaned = normalize_unicode(text)
+    lowered = cleaned.casefold()
     return re.sub(r"\s+", " ", lowered).strip()
 
 
 def validate(text: str) -> list[str]:
     errors = []
+
+    # P2: Max input size check (fail fast)
+    if len(text) > MAX_INPUT_SIZE:
+        errors.append(
+            f"Conteúdo excede limite máximo ({MAX_INPUT_SIZE // 1024 // 1024}MB)."
+        )
+        return errors
+
     normalized = normalize_for_detection(text)
 
     if len(text.strip()) < MIN_LENGTH:
@@ -83,7 +104,10 @@ def validate(text: str) -> list[str]:
 
 def main():
     try:
-        text = sys.stdin.read()
+        text = sys.stdin.read(MAX_INPUT_SIZE + 1)
+        if len(text) > MAX_INPUT_SIZE:
+            sys.stderr.write(f"Erro: input excede limite máximo ({MAX_INPUT_SIZE // 1024 // 1024}MB).\n")
+            sys.exit(1)
     except UnicodeDecodeError:
         sys.stderr.write("Erro: conteúdo não é UTF-8 válido.\n")
         sys.exit(1)

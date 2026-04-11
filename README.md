@@ -10,7 +10,7 @@
   <img src="cw_sentinel_ss.png" alt="Sentinel Dashboard" width="900"/>
 </p>
 
-![Status](https://img.shields.io/badge/status-v2.0-brightgreen)
+![Status](https://img.shields.io/badge/status-v1.5-brightgreen)
 ![Claude Code](https://img.shields.io/badge/Claude%20Code-native-orange)
 ![Kubernetes](https://img.shields.io/badge/Kubernetes-v1.35.1-blue)
 ![Go](https://img.shields.io/badge/Go-agent-00ADD8)
@@ -271,14 +271,21 @@ export HARNESS_TIMEOUT_SEC=10
 
 ## Changelog
 
-### v2.0
+### v1.5
+- **Security hardening** — connection pool PostgreSQL, rate limiting (100 rps), bind address configurável
+- **Harness** — normalização Unicode (NFKC), limite de input (10MB), cobertura de testes expandida (16 tests)
+- **Tools** — sanitização de `--component` contra path traversal, timeout com clamping seguro
+- Adicionado `requirements.txt` para dependências Python
+- Stack trace completo no panic recovery do Go agent
+
+### v1.4
 - **Go agent** (`agent/`) com dashboard web em tempo real na porta 8080
 - **FinOps** — rastreamento de waste por pod e histórico de custo (últimos 30min) persistido no PostgreSQL
 - **`/incident`** substitui `/sentinel` — análise LLM que consome diretamente a API do Go agent
 - **`/startup`** passa a subir o Go agent automaticamente além dos port-forwards
 - Removidos: `/sentinel`, `/collect-metrics`, `/analyze-pods`, `/correlate`, `/benchmark`
 
-### v2.1
+### v1.3
 - Renomeado para **sentinel** — identidade minimalista em todos os arquivos
 
 ### v1.2

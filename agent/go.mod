@@ -4,6 +4,7 @@ go 1.25.8
 
 require (
 	github.com/lib/pq v1.12.3
+	golang.org/x/time v0.15.0
 	k8s.io/apimachinery v0.35.3
 	k8s.io/client-go v0.35.3
 	k8s.io/metrics v0.35.3
@@ -34,7 +35,6 @@ require (
 	golang.org/x/sys v0.38.0 // indirect
 	golang.org/x/term v0.37.0 // indirect
 	golang.org/x/text v0.31.0 // indirect
-	golang.org/x/time v0.9.0 // indirect
 	google.golang.org/protobuf v1.36.8 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect

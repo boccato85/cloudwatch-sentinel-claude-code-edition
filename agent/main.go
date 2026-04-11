@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime/debug"
 	"sort"
 	"strconv"
 	"sync"
@@ -21,6 +22,7 @@ import (
 	"time"
 
 	_ "github.com/lib/pq"
+	"golang.org/x/time/rate"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
@@ -171,7 +173,12 @@ func recoverMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
 			if rec := recover(); rec != nil {
-				slog.Error("panic recovered", "request_id", r.Header.Get("X-Request-ID"), "method", r.Method, "path", r.URL.Path, "panic", rec)
+				slog.Error("panic recovered",
+					"request_id", r.Header.Get("X-Request-ID"),
+					"method", r.Method,
+					"path", r.URL.Path,
+					"panic", rec,
+					"stack", string(debug.Stack()))
 				w.Header().Set("X-Content-Type-Options", "nosniff")
 				w.Header().Set("X-Frame-Options", "DENY")
 				http.Error(w, "internal server error", http.StatusInternalServerError)
@@ -193,6 +200,23 @@ func requestLoggerMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+// rateLimitMiddleware creates a rate limiter that allows `rps` requests per second
+// with a burst capacity of rps*2. Returns 429 Too Many Requests when exceeded.
+func rateLimitMiddleware(rps int) func(http.Handler) http.Handler {
+	limiter := rate.NewLimiter(rate.Limit(rps), rps*2)
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if !limiter.Allow() {
+				w.Header().Set("X-Content-Type-Options", "nosniff")
+				w.Header().Set("Retry-After", "1")
+				http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
 var iconETag string
 
 func init() {
@@ -205,6 +229,8 @@ func main() {
 	dbPass := requireEnv("DB_PASSWORD")
 	dbName := getEnv("DB_NAME", "sentinel_db")
 	dbHost := getEnv("DB_HOST", "localhost")
+	// NOTE: Default "disable" is intentional for local dev (Minikube).
+	// For production, set DB_SSLMODE=require or verify-full.
 	sslMode := getEnv("DB_SSLMODE", "disable")
 	dbTimeout = time.Duration(getEnvInt("DB_TIMEOUT_SEC", 5)) * time.Second
 	if sslMode == "disable" {
@@ -220,6 +246,13 @@ func main() {
 		slog.Error("database connection failed", "err", err)
 		os.Exit(1)
 	}
+
+	// Connection pool hardening
+	db.SetMaxOpenConns(25)
+	db.SetMaxIdleConns(5)
+	db.SetConnMaxLifetime(5 * time.Minute)
+	db.SetConnMaxIdleTime(1 * time.Minute)
+
 	pingCtx, pingCancel := withDBTimeout(context.Background())
 	defer pingCancel()
 	if err = db.PingContext(pingCtx); err != nil {
@@ -506,15 +539,18 @@ func main() {
 		_, _ = w.Write(dashboardJS)
 	})
 
+	listenAddr := getEnv("LISTEN_ADDR", "127.0.0.1:8080")
+	rateLimit := getEnvInt("RATE_LIMIT_RPS", 100)
+
 	srv := &http.Server{
-		Addr:         ":8080",
-		Handler:      withMiddleware(mux, recoverMiddleware, requestLoggerMiddleware),
+		Addr:         listenAddr,
+		Handler:      withMiddleware(mux, recoverMiddleware, requestLoggerMiddleware, rateLimitMiddleware(rateLimit)),
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 30 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
 
-	slog.Info("Sentinel Cluster Overview", "url", "http://localhost:8080")
+	slog.Info("Sentinel Cluster Overview", "url", fmt.Sprintf("http://%s", listenAddr))
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
