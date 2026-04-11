@@ -55,6 +55,26 @@ agent:
   rateLimitRps: 100
   dbTimeoutSec: 5
 
+# Data retention configuration
+# Sentinel uses a tiered retention strategy:
+# - Raw metrics: high resolution, short retention (default: 24 hours)
+# - Hourly aggregates: medium resolution, medium retention (default: 30 days)
+# - Daily aggregates: low resolution, long retention (default: 365 days)
+retention:
+  # Raw metrics retention in hours (minute-level granularity)
+  # Recommended: 24-72 hours for most use cases
+  rawHours: 24
+  
+  # Hourly aggregates retention in days
+  # These are auto-generated from raw metrics every hour
+  # Recommended: 30-90 days
+  hourlyDays: 30
+  
+  # Daily aggregates retention in days
+  # These are auto-generated from hourly data every day
+  # Recommended: 365-730 days (1-2 years)
+  dailyDays: 365
+
 # Ingress configuration (optional)
 ingress:
   enabled: false

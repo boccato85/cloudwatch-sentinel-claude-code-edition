@@ -8,3 +8,7 @@ data:
   LISTEN_ADDR: {{ .Values.agent.listenAddr | quote }}
   RATE_LIMIT_RPS: {{ .Values.agent.rateLimitRps | quote }}
   DB_TIMEOUT_SEC: {{ .Values.agent.dbTimeoutSec | quote }}
+  # Retention settings
+  RETENTION_RAW_HOURS: {{ .Values.retention.rawHours | quote }}
+  RETENTION_HOURLY_DAYS: {{ .Values.retention.hourlyDays | quote }}
+  RETENTION_DAILY_DAYS: {{ .Values.retention.dailyDays | quote }}

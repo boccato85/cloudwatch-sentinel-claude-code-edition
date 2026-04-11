@@ -10,7 +10,7 @@
   <img src="cw_sentinel_ss.png" alt="Sentinel Dashboard" width="900"/>
 </p>
 
-![Status](https://img.shields.io/badge/status-v1.5-brightgreen)
+![Status](https://img.shields.io/badge/status-v1.6-brightgreen)
 ![Claude Code](https://img.shields.io/badge/Claude%20Code-native-orange)
 ![Kubernetes](https://img.shields.io/badge/Kubernetes-v1.35.1-blue)
 ![Go](https://img.shields.io/badge/Go-agent-00ADD8)
@@ -201,7 +201,12 @@ Após o `/startup`, acesse `http://localhost:8080`.
 | `GET /` | Dashboard Dynatrace-style (HTML) |
 | `GET /api/summary` | Estado do cluster: nodes, pods, CPU |
 | `GET /api/metrics` | Métricas por pod: CPU usage, waste (`cpuRequestPresent`, `potentialSavingMCpu`) |
-| `GET /api/history` | Histórico de custo dos últimos 30 min |
+| `GET /api/history` | Histórico de custo (ver ranges abaixo) |
+| `GET /api/history?range=30m` | Últimos 30 minutos (default) |
+| `GET /api/history?range=24h` | Últimas 24 horas |
+| `GET /api/history?range=7d` | Últimos 7 dias |
+| `GET /api/history?range=30d` | Últimos 30 dias |
+| `GET /api/history?range=365d` | Último ano |
 
 Gerenciamento manual:
 
@@ -244,6 +249,48 @@ Definidos em `config/thresholds.yaml` — source of truth único, lido em runtim
 | Pod CrashLoopBackOff | — | imediato |
 | Pod Pending > 5min | ✓ | — |
 | Waste por pod | > 60% | — |
+
+---
+
+## Retenção de Dados
+
+O Sentinel usa uma estratégia de retenção em camadas para balancear granularidade e uso de disco:
+
+| Camada | Granularidade | Retenção Default | Configurável via |
+|--------|---------------|------------------|------------------|
+| Raw | 10 segundos | 24 horas | `RETENTION_RAW_HOURS` |
+| Hourly | 1 hora | 30 dias | `RETENTION_HOURLY_DAYS` |
+| Daily | 1 dia | 365 dias | `RETENTION_DAILY_DAYS` |
+
+**Agregação automática:** A cada hora, o Sentinel:
+1. Agrega métricas raw em buckets hourly
+2. Agrega hourly em buckets daily
+3. Remove dados antigos conforme a política de retenção
+
+**Via Helm (recomendado para produção):**
+
+```yaml
+# values.yaml
+retention:
+  rawHours: 48       # 2 dias de dados raw
+  hourlyDays: 90     # 3 meses de agregados hourly
+  dailyDays: 730     # 2 anos de agregados daily
+```
+
+**Via variáveis de ambiente (standalone):**
+
+```bash
+export RETENTION_RAW_HOURS=24
+export RETENTION_HOURLY_DAYS=30
+export RETENTION_DAILY_DAYS=365
+```
+
+**Estimativa de uso de disco (por 100 pods):**
+
+| Período | Raw | Hourly | Daily | Total |
+|---------|-----|--------|-------|-------|
+| 1 mês | ~50MB | ~15MB | ~1MB | ~66MB |
+| 1 ano | N/A | ~180MB | ~12MB | ~192MB |
 
 ---
 
@@ -304,6 +351,12 @@ export HARNESS_TIMEOUT_SEC=10
 ---
 
 ## Changelog
+
+### v1.6
+- **Retenção configurável** — política de retenção em 3 camadas (raw/hourly/daily) com cleanup automático
+- **Histórico expandido** — `/api/history` agora suporta ranges de 30m até 365d
+- **Agregação automática** — job que roda a cada hora compactando métricas antigas
+- Novas tabelas: `metrics_hourly`, `metrics_daily`, `cost_history`
 
 ### v1.5
 - **Helm chart** — deploy completo no Kubernetes com `helm install sentinel helm/sentinel -n sentinel`
