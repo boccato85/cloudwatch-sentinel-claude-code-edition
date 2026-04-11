@@ -285,6 +285,13 @@ func main() {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("X-Frame-Options", "DENY")
 	}
+	writeJSONError := func(w http.ResponseWriter, status int, msg string) {
+		setSecureHeaders(w)
+		w.WriteHeader(status)
+		if err := json.NewEncoder(w).Encode(map[string]string{"error": msg}); err != nil {
+			slog.Error("failed to encode error response", "status", status, "err", err)
+		}
+	}
 
 	http.HandleFunc("/static/icon.png", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
@@ -303,29 +310,37 @@ func main() {
 
 	http.HandleFunc("/api/summary", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
-			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+			writeJSONError(w, http.StatusMethodNotAllowed, "method not allowed")
 			return
 		}
 		setSecureHeaders(w)
 		statsMutex.Lock()
 		defer statsMutex.Unlock()
-		json.NewEncoder(w).Encode(latestSummary)
+		if err := json.NewEncoder(w).Encode(latestSummary); err != nil {
+			slog.Error("failed to encode summary response", "err", err)
+			writeJSONError(w, http.StatusInternalServerError, "internal server error")
+			return
+		}
 	})
 
 	http.HandleFunc("/api/metrics", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
-			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+			writeJSONError(w, http.StatusMethodNotAllowed, "method not allowed")
 			return
 		}
 		setSecureHeaders(w)
 		statsMutex.Lock()
 		defer statsMutex.Unlock()
-		json.NewEncoder(w).Encode(latestStats)
+		if err := json.NewEncoder(w).Encode(latestStats); err != nil {
+			slog.Error("failed to encode metrics response", "err", err)
+			writeJSONError(w, http.StatusInternalServerError, "internal server error")
+			return
+		}
 	})
 
 	http.HandleFunc("/api/history", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
-			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+			writeJSONError(w, http.StatusMethodNotAllowed, "method not allowed")
 			return
 		}
 		setSecureHeaders(w)
@@ -341,6 +356,7 @@ func main() {
 		if err != nil {
 			logSQLError("query_history", err)
 			slog.Error("sql query error", "err", err)
+			writeJSONError(w, http.StatusInternalServerError, "internal server error")
 			return
 		}
 		defer rows.Close()
@@ -348,11 +364,23 @@ func main() {
 		for rows.Next() {
 			var p HistoryPoint
 			if err := rows.Scan(&p.Time, &p.ReqCost, &p.UseCost); err != nil {
-				continue
+				slog.Error("failed to scan history row", "err", err)
+				writeJSONError(w, http.StatusInternalServerError, "internal server error")
+				return
 			}
 			points = append(points, p)
 		}
-		json.NewEncoder(w).Encode(points)
+		if err := rows.Err(); err != nil {
+			logSQLError("history_rows_iteration", err)
+			slog.Error("history row iteration failed", "err", err)
+			writeJSONError(w, http.StatusInternalServerError, "internal server error")
+			return
+		}
+		if err := json.NewEncoder(w).Encode(points); err != nil {
+			slog.Error("failed to encode history response", "err", err)
+			writeJSONError(w, http.StatusInternalServerError, "internal server error")
+			return
+		}
 	})
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
