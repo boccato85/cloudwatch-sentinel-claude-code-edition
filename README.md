@@ -385,12 +385,6 @@ export HARNESS_TIMEOUT_SEC=10
 
 ---
 
-## Motivação
-
-Projeto desenvolvido para explorar na prática a evolução de um agente Claude Code simples de monitoramento até uma plataforma de observabilidade e FinOps — combinando coleta autônoma via Go, persistência com PostgreSQL, dashboard em tempo real e raciocínio LLM para análise de incidentes.
-
----
-
 ## Licença
 
 Distribuído sob a licença [Apache 2.0](LICENSE).
