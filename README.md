@@ -4,7 +4,7 @@
   <img src="cw_sentinel_logo.png" alt="Sentinel Logo" width="180"/>
 </p>
 
-> Plataforma minimalista de observabilidade e FinOps para clusters Kubernetes — dashboard em tempo real, análise de incidentes com LLM e rastreamento de custo por pod.
+> Ferramenta standalone de observabilidade e FinOps para Kubernetes — dashboard em tempo real, análise de custo por pod e integração com LLM para resposta a incidentes.
 
 <p align="center">
   <img src="cw_sentinel_ss.png" alt="Sentinel Dashboard" width="900"/>
@@ -21,18 +21,17 @@
 
 ## O que é
 
-Sentinel evoluiu de um agente de monitoramento reativo para uma plataforma completa de observabilidade e FinOps. A arquitetura combina duas camadas complementares:
+Sentinel é uma ferramenta de observabilidade para Kubernetes que combina coleta autônoma de métricas, análise de custos (FinOps) e integração com LLM para diagnóstico de incidentes. A arquitetura é composta por duas camadas:
 
-- **Go Agent** — dashboard web proativo em tempo real (porta 8080), coleta contínua de métricas e histórico de custo por pod persistido no PostgreSQL
-- **Claude Code** — análise de incidentes sob demanda com raciocínio LLM, geração de runbooks e recomendações de remediação
+- **Go Agent** — binário standalone que coleta métricas do cluster via Metrics API, persiste no PostgreSQL e expõe um dashboard web em tempo real (porta 8080)
+- **Claude Code** — camada de análise que consome a API do agente, aplica raciocínio LLM e gera runbooks de remediação
 
-O projeto demonstra na prática:
-- **Go agent** com Kubernetes client-go para coleta autônoma de métricas
-- **FinOps** — rastreamento de waste (recursos alocados vs utilizados) e histórico de custo por pod
-- **Standalone** — não depende de Prometheus/Grafana/AlertManager
-- **MCP Server** para integração com kubectl
-- **CLAUDE.md** como contexto operacional persistente
-- **Slash commands** como interface de resposta a incidentes
+Características principais:
+
+- **Standalone** — não depende de Prometheus, Grafana ou AlertManager
+- **FinOps nativo** — rastreamento de waste (alocado vs utilizado) e histórico de custo por pod
+- **Deploy simples** — Helm chart pronto para produção com retenção configurável
+- **Integração LLM** — slash commands para análise de incidentes e geração de runbooks
 
 ---
 
