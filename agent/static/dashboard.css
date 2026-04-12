@@ -102,3 +102,6 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);font-
 .line-legend{display:flex;gap:16px;font-size:.74em}
 .line-legend span{display:flex;align-items:center;gap:5px}
 .line-legend i{width:14px;height:2px;border-radius:2px;display:inline-block}
+/* VERSION BADGE */
+.ver-badge{font-size:.68em;font-family:'JetBrains Mono',monospace;color:var(--text-dim);background:var(--surface2);border:1px solid var(--border);border-radius:3px;padding:2px 7px;cursor:default;opacity:.7;transition:opacity .2s}
+.ver-badge:hover{opacity:1;color:var(--cyan);border-color:var(--cyan)}
