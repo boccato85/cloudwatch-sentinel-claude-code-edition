@@ -474,11 +474,32 @@ func main() {
 	db.SetConnMaxLifetime(5 * time.Minute)
 	db.SetConnMaxIdleTime(1 * time.Minute)
 
-	pingCtx, pingCancel := withDBTimeout(context.Background())
-	defer pingCancel()
-	if err = db.PingContext(pingCtx); err != nil {
-		slog.Error("database ping failed", "err", err)
-		os.Exit(1)
+	// Retry connection with exponential backoff
+	// This handles cases where PostgreSQL is still starting up
+	maxRetries := getEnvInt("DB_CONNECT_RETRIES", 10)
+	var lastErr error
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		pingCtx, pingCancel := withDBTimeout(context.Background())
+		lastErr = db.PingContext(pingCtx)
+		pingCancel()
+
+		if lastErr == nil {
+			slog.Info("database connection established", "attempt", attempt)
+			break
+		}
+
+		if attempt == maxRetries {
+			slog.Error("database ping failed after all retries", "attempts", maxRetries, "err", lastErr)
+			os.Exit(1)
+		}
+
+		// Exponential backoff: 1s, 2s, 4s, 8s... capped at 30s
+		backoff := time.Duration(1<<(attempt-1)) * time.Second
+		if backoff > 30*time.Second {
+			backoff = 30 * time.Second
+		}
+		slog.Warn("database not ready, retrying...", "attempt", attempt, "maxRetries", maxRetries, "backoff", backoff, "err", lastErr)
+		time.Sleep(backoff)
 	}
 
 	// Ensure database schema exists

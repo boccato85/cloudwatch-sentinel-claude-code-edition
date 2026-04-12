@@ -22,6 +22,21 @@ spec:
         app.kubernetes.io/component: agent
     spec:
       serviceAccountName: {{ include "sentinel.serviceAccountName" . }}
+      {{- if not .Values.postgresql.external }}
+      initContainers:
+        - name: wait-for-postgres
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for PostgreSQL at {{ include "sentinel.fullname" . }}-postgresql:5432..."
+              until nc -z {{ include "sentinel.fullname" . }}-postgresql 5432; do
+                echo "PostgreSQL not ready, sleeping 2s..."
+                sleep 2
+              done
+              echo "PostgreSQL is ready!"
+      {{- end }}
       containers:
         - name: {{ .Chart.Name }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
