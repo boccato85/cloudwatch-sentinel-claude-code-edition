@@ -10,7 +10,7 @@
   <img src="cw_sentinel_ss.png" alt="Sentinel Dashboard" width="900"/>
 </p>
 
-![Status](https://img.shields.io/badge/status-v1.7-brightgreen)
+![Status](https://img.shields.io/badge/status-v1.7.3-brightgreen)
 ![Claude Code](https://img.shields.io/badge/Claude%20Code-native-orange)
 ![Kubernetes](https://img.shields.io/badge/Kubernetes-v1.35.1-blue)
 ![Go](https://img.shields.io/badge/Go-agent-00ADD8)
@@ -338,6 +338,12 @@ export HARNESS_TIMEOUT_SEC=10
 ---
 
 ## Changelog
+
+### v1.7.3
+- **Dashboard — barra de Utilization corrigida** — agora mostra `uso / request` real em vez de relativo ao maior consumidor
+- **Cores semânticas** — verde (>70% eficiente), laranja (40-70%), vermelho (<40% = desperdício)
+- **Financial Correlation melhorado** — sumário de Budget / Actual / Waste ($ e %) acima do gráfico
+- **Tooltip enriquecido** — mostra Budget, Actual e Waste por ponto ao passar o mouse
 
 ### v1.7
 - **Standalone completo** — removida toda dependência de Prometheus/Grafana/AlertManager
