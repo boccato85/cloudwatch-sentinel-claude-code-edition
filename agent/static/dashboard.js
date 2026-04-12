@@ -31,6 +31,22 @@ function uDonut(id, labels, data, colors) {
 function uLine(id, hData) {
   var el = document.getElementById(id);
   if (!el || !hData || hData.length === 0) return;
+  
+  // Calculate totals for summary
+  var totalBudget = hData.reduce(function(sum, p) { return sum + p.reqCost; }, 0);
+  var totalActual = hData.reduce(function(sum, p) { return sum + p.useCost; }, 0);
+  var totalSaved = totalBudget - totalActual;
+  var savingsPct = totalBudget > 0 ? ((totalSaved / totalBudget) * 100) : 0;
+  
+  // Update summary elements if they exist
+  var summaryEl = document.getElementById('finopsSummary');
+  if (summaryEl) {
+    summaryEl.innerHTML = 
+      '<span style="color:var(--red)">Budget: $' + totalBudget.toFixed(4) + '</span> | ' +
+      '<span style="color:var(--green)">Actual: $' + totalActual.toFixed(4) + '</span> | ' +
+      '<span style="color:var(--orange)">Waste: $' + totalSaved.toFixed(4) + ' (' + savingsPct.toFixed(0) + '%)</span>';
+  }
+  
   if (charts[id]) {
     charts[id].data.labels = hData.map(function(p){ return p.time; });
     charts[id].data.datasets[0].data = hData.map(function(p){ return p.reqCost; });
@@ -42,12 +58,12 @@ function uLine(id, hData) {
       data: {
         labels: hData.map(function(p){ return p.time; }),
         datasets: [
-          { label: 'Budget ($)', borderColor: '#e54949', borderWidth: 1.5,
+          { label: 'Budget (Requested)', borderColor: '#e54949', borderWidth: 2,
             data: hData.map(function(p){ return p.reqCost; }),
             pointRadius: 0, tension: 0.3, fill: false },
-          { label: 'Actual ($)', borderColor: '#00cc8f', borderWidth: 1.5,
+          { label: 'Actual (Usage)', borderColor: '#00cc8f', borderWidth: 2,
             data: hData.map(function(p){ return p.useCost; }),
-            fill: true, backgroundColor: 'rgba(0,204,143,.06)', pointRadius: 0, tension: 0.3 }
+            fill: true, backgroundColor: 'rgba(0,204,143,.15)', pointRadius: 0, tension: 0.3 }
         ]
       },
       options: {
@@ -55,8 +71,31 @@ function uLine(id, hData) {
         interaction: { mode: 'index', intersect: false },
         plugins: {
           legend: { display: false },
-          tooltip: { backgroundColor: '#1a1e27', borderColor: '#2d3347', borderWidth: 1,
-                     titleColor: '#c8d0e0', bodyColor: '#7a8499' }
+          tooltip: { 
+            backgroundColor: '#1a1e27', 
+            borderColor: '#2d3347', 
+            borderWidth: 1,
+            titleColor: '#c8d0e0', 
+            bodyColor: '#c8d0e0',
+            padding: 12,
+            callbacks: {
+              label: function(context) {
+                var label = context.dataset.label || '';
+                var value = context.parsed.y;
+                return label + ': $' + value.toFixed(6);
+              },
+              afterBody: function(context) {
+                if (context.length >= 2) {
+                  var budget = context[0].parsed.y;
+                  var actual = context[1].parsed.y;
+                  var waste = budget - actual;
+                  var pct = budget > 0 ? ((waste / budget) * 100) : 0;
+                  return ['', 'Waste: $' + waste.toFixed(6) + ' (' + pct.toFixed(0) + '%)'];
+                }
+                return [];
+              }
+            }
+          }
         },
         scales: {
           y: { grid: { color: 'rgba(45,51,71,.55)' },
@@ -64,7 +103,9 @@ function uLine(id, hData) {
                  color: '#7a8499', 
                  font: { family: 'JetBrains Mono', size: 10 },
                  callback: function(value) {
-                   return '$' + value.toFixed(6);
+                   if (value >= 0.01) return '$' + value.toFixed(2);
+                   if (value >= 0.001) return '$' + value.toFixed(3);
+                   return '$' + value.toFixed(4);
                  }
                } 
           },
@@ -161,11 +202,12 @@ async function update() {
       document.getElementById('kT').textContent  = m[0].cpuUsage + 'm';
       document.getElementById('kTs').textContent = m[0].name || '--';
     }
-    var maxCpu = m.length > 0 ? m[0].cpuUsage : 1;
     var rows = '';
     m.slice(0, 10).forEach(function(p, i) {
-      var pct = maxCpu > 0 ? (p.cpuUsage / maxCpu * 100) : 0;
-      var fc = pct > 80 ? 'var(--red)' : pct > 55 ? 'var(--orange)' : 'var(--cyan)';
+      // Calculate utilization as % of request (not relative to max consumer)
+      var pct = (p.cpuRequestPresent && p.cpuRequest > 0) ? (p.cpuUsage / p.cpuRequest * 100) : 0;
+      // Color: green = efficient (>70%), orange = moderate (40-70%), red = wasteful (<40%)
+      var fc = pct > 70 ? 'var(--green)' : pct > 40 ? 'var(--orange)' : 'var(--red)';
       var cpuRequestText = p.cpuRequestPresent ? (p.cpuRequest + 'm') : 'N/A';
       var hasSaving = Number(p.potentialSavingMCpu || 0) > 0;
       var oppLabel = hasSaving ? ('-' + Number(p.potentialSavingMCpu) + 'm') : '';
@@ -178,7 +220,7 @@ async function update() {
         '<td><span class="ns-tag">' + esc(p.namespace||'--') + '</span></td>' +
         '<td class="mono" style="color:var(--cyan)">' + p.cpuUsage + 'm</td>' +
         '<td class="mono" style="color:var(--text-dim)">' + esc(cpuRequestText) + '</td>' +
-        '<td><div class="util-wrap"><div class="util-bg"><div class="util-fill" style="width:' + pct.toFixed(0) + '%;background:' + fc + '"></div></div>' +
+        '<td><div class="util-wrap"><div class="util-bg"><div class="util-fill" style="width:' + Math.min(pct, 100).toFixed(0) + '%;background:' + fc + '"></div></div>' +
             '<span class="util-pct">' + pct.toFixed(0) + '%</span></div></td>' +
         '<td>' + opp + '</td>' +
         '</tr>';
