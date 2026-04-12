@@ -101,6 +101,7 @@ export DB_NAME=sentinel_db
 export DB_HOST=localhost
 export DB_SSLMODE=disable
 export DB_TIMEOUT_SEC=5
+export DB_CONNECT_RETRIES=10   # retries com backoff exponencial
 ```
 
 ### 2. Clone e MCP Server
@@ -340,6 +341,7 @@ export HARNESS_TIMEOUT_SEC=10
 
 ### v1.7
 - **Standalone completo** — removida toda dependência de Prometheus/Grafana/AlertManager
+- **Inicialização resiliente** — initContainer aguarda PostgreSQL + retry com backoff exponencial no Go
 - `tools/monitor.py` reescrito para usar API do Go agent (`/api/summary`, `/api/metrics`)
 - `/startup` simplificado — apenas verifica Minikube e Go agent
 - Removido MCP Server prometheus do `.mcp.json`
