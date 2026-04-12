@@ -555,7 +555,9 @@ func main() {
 			ctx, cancel := context.WithTimeout(appCtx, 15*time.Second)
 
 			nodes, err := clientset.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
-			if err == nil {
+			if err != nil {
+				slog.Error("failed to list nodes", "err", err)
+			} else {
 				for _, n := range nodes.Items {
 					summary.Nodes = append(summary.Nodes, NodeInfo{Name: n.Name, Status: "Running"})
 					summary.CpuAllocatable += n.Status.Allocatable.Cpu().MilliValue()
@@ -565,7 +567,9 @@ func main() {
 
 			pods, err := clientset.CoreV1().Pods("").List(ctx, metav1.ListOptions{})
 			podRequestMap := make(map[string]map[string]int64)
-			if err == nil {
+			if err != nil {
+				slog.Error("failed to list pods", "err", err)
+			} else {
 				for _, p := range pods.Items {
 					summary.PodsByPhase[string(p.Status.Phase)]++
 					if p.Status.Phase == "Failed" {
@@ -587,7 +591,9 @@ func main() {
 
 			var newStats []PodStats
 			mList, err := metricsClient.MetricsV1beta1().PodMetricses("").List(ctx, metav1.ListOptions{})
-			if err == nil {
+			if err != nil {
+				slog.Error("failed to list pod metrics", "err", err)
+			} else {
 				func() {
 					dbCtx, dbCancel := withDBTimeout(appCtx)
 					defer dbCancel()
@@ -644,6 +650,7 @@ func main() {
 			latestStats = newStats
 			latestSummary = summary
 			statsMutex.Unlock()
+
 			cancel()
 			select {
 			case <-appCtx.Done():
@@ -887,7 +894,7 @@ func main() {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("X-Frame-Options", "DENY")
-		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:")
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; connect-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:")
 		_, _ = w.Write(dashboardHTML)
 	})
 

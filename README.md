@@ -342,6 +342,7 @@ export HARNESS_TIMEOUT_SEC=10
 ### v1.7
 - **Standalone completo** — removida toda dependência de Prometheus/Grafana/AlertManager
 - **Inicialização resiliente** — initContainer aguarda PostgreSQL + retry com backoff exponencial no Go
+- **CSP fix** — adicionado `connect-src 'self'` para permitir fetch requests no dashboard
 - `tools/monitor.py` reescrito para usar API do Go agent (`/api/summary`, `/api/metrics`)
 - `/startup` simplificado — apenas verifica Minikube e Go agent
 - Removido MCP Server prometheus do `.mcp.json`
